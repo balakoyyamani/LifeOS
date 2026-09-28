@@ -3,20 +3,23 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: LifeOS Phase 1 API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: today
+    description: Daily execution and dashboard operations
+  - name: goals
+    description: Recurring goal management
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,13 +27,359 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /dashboard:
+    get:
+      operationId: getDashboard
+      tags: [today]
+      summary: Get the dashboard summary
+      responses:
+        "200":
+          description: Dashboard summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Dashboard"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /today:
+    get:
+      operationId: getToday
+      tags: [today]
+      summary: Get today’s generated goals and progress
+      responses:
+        "200":
+          description: Today’s goals
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Today"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /today/goals/{id}/progress:
+    patch:
+      operationId: updateDailyGoalProgress
+      tags: [today]
+      summary: Update measurable progress or status for today’s goal
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DailyGoalProgressInput"
+      responses:
+        "200":
+          description: Updated daily goal
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DailyGoal"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /goals:
+    get:
+      operationId: getGoals
+      tags: [goals]
+      summary: List recurring goals
+      responses:
+        "200":
+          description: Goals
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Goal"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: createGoal
+      tags: [goals]
+      summary: Create a recurring goal
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GoalInput"
+      responses:
+        "201":
+          description: Created goal
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Goal"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /goals/{id}:
+    patch:
+      operationId: updateGoal
+      tags: [goals]
+      summary: Edit a recurring goal
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GoalUpdate"
+      responses:
+        "200":
+          description: Updated goal
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Goal"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      operationId: deleteGoal
+      tags: [goals]
+      summary: Delete a recurring goal
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "204":
+          description: Goal deleted
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
 components:
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+  responses:
+    BadRequest:
+      description: Invalid request
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Unauthorized:
+      description: Authentication required
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
   schemas:
     HealthStatus:
       type: object
       properties:
         status:
           type: string
-      required:
-        - status
-
+      required: [status]
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+      required: [error]
+    Category:
+      type: string
+      enum: [career, learning, health, mind, routine, personal]
+    Frequency:
+      type: string
+      enum: [daily, weekdays, weekly]
+    GoalStatus:
+      type: string
+      enum: [not_started, in_progress, completed, skipped]
+    Goal:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        category:
+          $ref: "#/components/schemas/Category"
+        targetValue:
+          type: number
+        unit:
+          type: string
+        frequency:
+          $ref: "#/components/schemas/Frequency"
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: ["string", "null"]
+          format: date
+        active:
+          type: boolean
+        priority:
+          type: integer
+          minimum: 1
+          maximum: 3
+      required: [id, name, category, targetValue, unit, frequency, startDate, endDate, active, priority]
+    GoalInput:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+        category:
+          $ref: "#/components/schemas/Category"
+        targetValue:
+          type: number
+          exclusiveMinimum: 0
+        unit:
+          type: string
+          minLength: 1
+        frequency:
+          $ref: "#/components/schemas/Frequency"
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: ["string", "null"]
+          format: date
+        priority:
+          type: integer
+          minimum: 1
+          maximum: 3
+      required: [name, category, targetValue, unit, frequency, startDate, priority]
+    GoalUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+        category:
+          $ref: "#/components/schemas/Category"
+        targetValue:
+          type: number
+          exclusiveMinimum: 0
+        unit:
+          type: string
+          minLength: 1
+        frequency:
+          $ref: "#/components/schemas/Frequency"
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: ["string", "null"]
+          format: date
+        active:
+          type: boolean
+        priority:
+          type: integer
+          minimum: 1
+          maximum: 3
+    DailyGoal:
+      type: object
+      properties:
+        id:
+          type: integer
+        goalId:
+          type: integer
+        name:
+          type: string
+        category:
+          $ref: "#/components/schemas/Category"
+        targetValue:
+          type: number
+        currentValue:
+          type: number
+        unit:
+          type: string
+        status:
+          $ref: "#/components/schemas/GoalStatus"
+        percent:
+          type: number
+        priority:
+          type: integer
+      required: [id, goalId, name, category, targetValue, currentValue, unit, status, percent, priority]
+    DailyGoalProgressInput:
+      type: object
+      properties:
+        currentValue:
+          type: number
+          minimum: 0
+        status:
+          $ref: "#/components/schemas/GoalStatus"
+      required: [currentValue]
+    CategoryContribution:
+      type: object
+      properties:
+        category:
+          $ref: "#/components/schemas/Category"
+        weight:
+          type: number
+        completion:
+          type: number
+        contribution:
+          type: number
+      required: [category, weight, completion, contribution]
+    Dashboard:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+        greeting:
+          type: string
+        dailyCompletion:
+          type: number
+        dailyScore:
+          type: number
+        streak:
+          type: integer
+        focusMinutes:
+          type: integer
+        completedCount:
+          type: integer
+        totalCount:
+          type: integer
+        categoryContributions:
+          type: array
+          items:
+            $ref: "#/components/schemas/CategoryContribution"
+        highlights:
+          type: array
+          items:
+            type: string
+      required: [date, greeting, dailyCompletion, dailyScore, streak, focusMinutes, completedCount, totalCount, categoryContributions, highlights]
+    Today:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+        dailyCompletion:
+          type: number
+        dailyScore:
+          type: number
+        goals:
+          type: array
+          items:
+            $ref: "#/components/schemas/DailyGoal"
+        categoryContributions:
+          type: array
+          items:
+            $ref: "#/components/schemas/CategoryContribution"
+      required: [date, dailyCompletion, dailyScore, goals, categoryContributions]

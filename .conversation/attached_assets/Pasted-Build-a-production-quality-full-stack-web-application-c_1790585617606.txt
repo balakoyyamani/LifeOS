@@ -1,0 +1,994 @@
+Build a production-quality full-stack web application called **LifeOS — Personal Career & Life Operating System**.
+
+The application is a personal productivity, career-management, learning, fitness, reading, and daily-routine system. Its purpose is to help a user structure each day around measurable goals, track execution, monitor career progress, and generate useful insights from their historical data.
+
+IMPORTANT:
+
+* Do not build a generic habit tracker.
+* The application should feel like a professional personal operating system.
+* Prioritize a clean, modern, responsive UI.
+* Mobile-first design is important because the user will primarily use the application from a phone.
+* Build the application modularly so new features can be added without rewriting existing functionality.
+* Do not create fake functionality or placeholder buttons that do nothing.
+* Every visible button should either work or be clearly marked as coming later.
+* Do not over-engineer the first version.
+
+==================================================
+
+1. TECHNOLOGY STACK
+   ==================================================
+
+Use:
+
+Frontend:
+
+* React
+* TypeScript
+* Vite
+* Tailwind CSS
+* Recharts or another lightweight charting library
+
+Backend:
+
+* Node.js
+* TypeScript
+* REST API architecture
+
+Database:
+
+* Replit SQL / PostgreSQL-compatible relational database
+
+Authentication:
+
+* Replit Auth if available and appropriate
+* Otherwise implement secure email/password authentication using the available Replit-supported authentication approach
+
+AI:
+
+* Claude API
+* API key must NEVER be hardcoded
+* Read the API key from environment variables
+* Create an abstraction layer for AI functionality so the provider can be changed later
+
+Development:
+
+* Use environment variables for secrets
+* Keep frontend and backend configuration separate
+* Use clean TypeScript types
+* Use validation for API requests
+* Handle errors gracefully
+
+==================================================
+2. CORE PRODUCT PHILOSOPHY
+==========================
+
+The central question of the application should be:
+
+"What should I accomplish today, and how much progress have I made?"
+
+The application should emphasize:
+
+1. Execution
+2. Consistency
+3. Career progress
+4. Learning
+5. Health
+6. Reflection
+7. Long-term improvement
+
+Do NOT make gamification the primary purpose.
+
+The user should be able to open the application and immediately understand:
+
+* What today's goals are
+* What has been completed
+* What remains
+* How much time has been spent
+* Current daily score
+* Career progress
+* What should be done next
+
+==================================================
+3. APPLICATION STRUCTURE
+========================
+
+Create these primary sections:
+
+1. Dashboard
+2. Today
+3. Jobs
+4. Focus
+5. Learning
+6. Fitness
+7. Reading
+8. Analytics
+9. AI Coach
+10. Settings
+
+Use a responsive sidebar on desktop and bottom navigation/mobile navigation on small screens.
+
+==================================================
+4. DASHBOARD
+============
+
+Create a professional dashboard.
+
+Display:
+
+* Current date
+* Greeting
+* Daily completion percentage
+* Daily score
+* Current streak
+* Today's unfinished tasks
+* Job application progress
+* Study progress
+* Technology-learning progress
+* Reading progress
+* Exercise progress
+* Sleep/wake status
+* Focus time
+* Quick actions
+
+Example:
+
+TODAY
+
+Daily Progress
+72%
+
+Career
+Applications: 67 / 100
+Study: 45 / 60 min
+Technology: 80 / 120 min
+
+Health
+Cardio: 30 / 30 min
+Core: 20 / 30 min
+
+Mind
+Reading: 20 / 30 min
+
+Routine
+Wake: Completed
+Sleep: Pending
+
+Provide a prominent "Start Focus Session" action.
+
+==================================================
+5. GOAL SYSTEM
+==============
+
+Goals must be configurable.
+
+Do NOT hard-code the user's goals.
+
+Each goal should contain:
+
+* Name
+* Category
+* Target value
+* Unit
+* Frequency
+* Start date
+* End date
+* Active/inactive status
+* Priority
+
+Categories:
+
+* Career
+* Learning
+* Health
+* Mind
+* Routine
+* Personal
+
+Examples:
+
+Job Applications
+Target: 100
+Unit: applications
+Frequency: daily
+
+Focused Study
+Target: 60
+Unit: minutes
+Frequency: daily
+
+Technology Learning
+Target: 120
+Unit: minutes
+Frequency: daily
+
+Reading
+Target: 30
+Unit: minutes
+Frequency: daily
+
+Cardio
+Target: 30
+Unit: minutes
+Frequency: daily
+
+Core Workout
+Target: 30
+Unit: minutes
+Frequency: daily
+
+The user must be able to:
+
+* Create goals
+* Edit goals
+* Pause goals
+* Delete goals
+* Change targets
+* Change frequency
+
+==================================================
+6. DAILY EXECUTION SYSTEM
+=========================
+
+Every day, generate the user's daily goals from their active recurring goals.
+
+Each daily goal should support:
+
+* Not started
+* In progress
+* Completed
+* Skipped
+
+For measurable goals, allow incremental progress.
+
+Example:
+
+Applications:
+67 / 100
+
+Study:
+45 / 60 minutes
+
+Technology:
+80 / 120 minutes
+
+Reading:
+20 / 30 minutes
+
+Allow the user to quickly increment progress.
+
+For example:
+
++1 application
++5 minutes
++10 minutes
+
+The system should automatically calculate completion percentage.
+
+==================================================
+7. DAILY SCORE
+==============
+
+Create a transparent scoring system.
+
+Each goal contributes according to its configured weight.
+
+Default weights:
+
+Career: 30%
+Learning: 25%
+Health: 20%
+Mind: 10%
+Routine: 15%
+
+Allow the scoring architecture to be changed later.
+
+Display:
+
+Daily Score: 82 / 100
+
+Also show the individual contribution of each category.
+
+Do not punish the user excessively for missing one goal.
+
+The purpose is measurement, not guilt.
+
+==================================================
+8. JOB APPLICATION TRACKER
+==========================
+
+Create a complete job management system.
+
+Job fields:
+
+* Company
+* Job title
+* Location
+* Employment type
+* Job URL
+* Source
+* Description
+* Required skills
+* Salary if available
+* Date discovered
+
+Application fields:
+
+* Job ID
+* Application date
+* Status
+* Resume version
+* Cover letter
+* Follow-up date
+* Interview date
+* Notes
+
+Application statuses:
+
+* Saved
+* Applied
+* Assessment
+* Interview
+* HR
+* Offer
+* Rejected
+* Withdrawn
+
+Create a Kanban-style pipeline:
+
+Saved → Applied → Assessment → Interview → HR → Offer
+
+Rejected and Withdrawn should be separate states.
+
+Provide:
+
+* Search
+* Filter
+* Sort
+* Status filter
+* Company filter
+* Date filter
+
+Show statistics:
+
+* Applications today
+* Applications this week
+* Applications this month
+* Interviews
+* Offers
+* Rejections
+* Response rate
+* Interview conversion rate
+
+==================================================
+9. JOB FOLLOW-UP SYSTEM
+=======================
+
+Allow the user to specify follow-up dates.
+
+Dashboard should display:
+
+"3 follow-ups due today"
+
+Allow the user to mark follow-ups as:
+
+* Completed
+* Rescheduled
+* Not required
+
+Later this can integrate with email/calendar.
+
+==================================================
+10. FOCUS TIMER
+===============
+
+Create a distraction-free focus timer.
+
+Activities:
+
+* Study
+* Coding
+* Job Search
+* Technology Learning
+* Reading
+* Other
+
+Allow:
+
+* Custom duration
+* Start
+* Pause
+* Resume
+* Stop
+* Complete
+
+Store every completed session.
+
+Focus session fields:
+
+* Activity
+* Start time
+* End time
+* Duration
+* Goal association
+* Notes
+
+Show:
+
+Today's focus time
+This week's focus time
+This month's focus time
+
+==================================================
+11. LEARNING MODULE
+===================
+
+Allow the user to track technologies they are learning.
+
+Technology fields:
+
+* Name
+* Category
+* Current level
+* Target level
+* Start date
+* Target date
+* Notes
+
+Examples:
+
+Java
+Spring Boot
+React
+SQL
+Docker
+AI
+System Design
+
+Track learning sessions.
+
+Display:
+
+Technology
+Hours invested
+Current progress
+Last studied
+Target
+
+Create a learning dashboard.
+
+==================================================
+12. READING MODULE
+==================
+
+Allow users to manage books.
+
+Book fields:
+
+* Title
+* Author
+* Category
+* Total pages
+* Current page
+* Status
+* Started date
+* Finished date
+* Rating
+* Notes
+
+Statuses:
+
+* Want to Read
+* Reading
+* Completed
+
+Track reading sessions.
+
+Show:
+
+* Reading time
+* Pages read
+* Current book
+* Books completed
+* Monthly reading time
+
+==================================================
+13. FITNESS MODULE
+==================
+
+Keep the first version simple.
+
+Allow tracking:
+
+* Cardio
+* Core
+* Walking
+* Running
+* Cycling
+* Gym
+* Custom workout
+
+Workout fields:
+
+* Type
+* Duration
+* Date
+* Notes
+
+Display:
+
+Today's exercise
+Weekly exercise
+Monthly exercise
+Workout streak
+
+Do not build a complicated calorie or medical system.
+
+==================================================
+14. SLEEP / ROUTINE
+===================
+
+Allow the user to configure:
+
+Target wake time
+Target sleep time
+
+Record:
+
+* Actual wake time
+* Actual sleep time
+* Sleep duration
+
+Show whether the user met the target.
+
+Keep this module simple.
+
+==================================================
+15. ANALYTICS
+=============
+
+Create a professional analytics section.
+
+Time filters:
+
+* 7 days
+* 30 days
+* 90 days
+* Custom range
+
+Charts:
+
+1. Daily completion percentage
+2. Daily score
+3. Job applications
+4. Focus time
+5. Learning time
+6. Reading time
+7. Exercise time
+8. Goal consistency
+9. Category performance
+
+Show trends rather than just raw numbers.
+
+Example:
+
+"Average daily completion increased from 68% to 81%."
+
+==================================================
+16. WEEKLY REVIEW
+=================
+
+Every week generate a review based ONLY on actual recorded data.
+
+Show:
+
+* Goals completed
+* Goals missed
+* Job applications
+* Interviews
+* Learning hours
+* Reading hours
+* Exercise time
+* Average daily score
+* Best consistency areas
+* Areas with missed targets
+
+Do not invent information.
+
+==================================================
+17. AI CAREER COACH
+===================
+
+Create an AI Coach section using Claude API.
+
+AI capabilities:
+
+A. Job Match
+
+Input:
+Job description
+
+Compare against:
+User profile
+Skills
+Experience
+Projects
+
+Return:
+
+* Matching skills
+* Missing skills
+* Relevant experience
+* Suggested preparation
+* Interview topics
+
+Do NOT claim an exact percentage unless the scoring methodology is explicitly defined.
+
+B. Resume Assistance
+
+Given a job description:
+
+Suggest:
+
+* Relevant resume bullets
+* Skills to highlight
+* Keywords
+* Project relevance
+
+Do not fabricate experience.
+
+C. Interview Preparation
+
+Generate:
+
+* Technical questions
+* HR questions
+* Project questions
+* Questions based on the job description
+
+D. Weekly Review
+
+Analyze actual LifeOS statistics and provide:
+
+* Observations
+* Patterns
+* Suggested next actions
+
+The AI should never invent user activity.
+
+==================================================
+18. AI ARCHITECTURE
+===================
+
+Create:
+
+/server/services/ai/
+
+with a clean service abstraction.
+
+Example concept:
+
+AIService
+├── analyzeJob()
+├── resumeAssist()
+├── generateInterviewQuestions()
+└── generateWeeklyReview()
+
+Keep prompts separate from business logic.
+
+Store AI conversations if appropriate.
+
+Never expose the Claude API key to the browser.
+
+==================================================
+19. DATABASE DESIGN
+===================
+
+Create normalized relational tables.
+
+Minimum tables:
+
+users
+profiles
+
+goals
+goal_progress
+daily_goals
+
+jobs
+applications
+application_events
+
+focus_sessions
+
+technologies
+learning_sessions
+
+books
+reading_sessions
+
+workouts
+
+sleep_records
+
+notifications
+
+ai_conversations
+ai_insights
+
+weekly_reviews
+
+Use proper primary keys, foreign keys, indexes, timestamps, and constraints.
+
+All user-owned data must be associated with the authenticated user.
+
+Never allow one user to access another user's data.
+
+==================================================
+20. REST API
+============
+
+Create clean REST endpoints.
+
+Examples:
+
+GET /api/dashboard
+GET /api/today
+
+GET /api/goals
+POST /api/goals
+PUT /api/goals/:id
+DELETE /api/goals/:id
+
+GET /api/jobs
+POST /api/jobs
+PUT /api/jobs/:id
+DELETE /api/jobs/:id
+
+GET /api/applications
+POST /api/applications
+PUT /api/applications/:id
+
+GET /api/focus
+POST /api/focus
+
+GET /api/analytics/daily
+GET /api/analytics/weekly
+GET /api/analytics/monthly
+
+POST /api/ai/job-match
+POST /api/ai/resume-assist
+POST /api/ai/interview
+POST /api/ai/weekly-review
+
+Validate all incoming data.
+
+Return appropriate HTTP status codes.
+
+==================================================
+21. UI/UX
+=========
+
+Design principles:
+
+* Modern
+* Minimal
+* Professional
+* Mobile-first
+* Fast
+* Accessible
+* Clear typography
+* Strong visual hierarchy
+
+Avoid:
+
+* Excessive gradients
+* Excessive animations
+* Clutter
+* Huge cards everywhere
+* Gamified childish UI
+
+Use charts only when they provide useful information.
+
+Primary navigation:
+
+Dashboard
+Today
+Jobs
+Focus
+Learning
+Fitness
+Reading
+Analytics
+AI Coach
+Settings
+
+==================================================
+22. MOBILE EXPERIENCE
+=====================
+
+The application must work extremely well on mobile.
+
+On mobile:
+
+* Use bottom navigation or a compact navigation menu
+* Make progress updates easy with one hand
+* Make the focus timer prominent
+* Make job application entry quick
+* Avoid wide tables
+* Convert tables into cards where appropriate
+
+==================================================
+23. SECURITY
+============
+
+Implement:
+
+* Secure authentication
+* Password hashing if using custom auth
+* JWT/session security
+* Authorization middleware
+* Input validation
+* API rate limiting where appropriate
+* Secure environment variables
+* No secrets in Git
+* User-level data isolation
+
+Never expose:
+
+CLAUDE_API_KEY
+
+or any other secret to the frontend.
+
+==================================================
+24. SEED DATA
+=============
+
+Create optional demo data for development.
+
+Demo goals:
+
+100 job applications
+60 minutes study
+120 minutes technology learning
+30 minutes reading
+30 minutes cardio
+30 minutes core
+
+Create sample jobs and applications so the dashboard looks realistic during development.
+
+Clearly separate demo data from real user data.
+
+==================================================
+25. PROJECT STRUCTURE
+=====================
+
+Use a maintainable structure similar to:
+
+/client
+/src
+/components
+/pages
+/features
+/hooks
+/services
+/types
+/utils
+
+/server
+/src
+/controllers
+/services
+/repositories
+/routes
+/middleware
+/models
+/validators
+/utils
+/ai
+
+/shared
+/types
+
+Keep business logic out of UI components.
+
+==================================================
+26. DEVELOPMENT STRATEGY
+========================
+
+Do NOT attempt to implement every feature simultaneously.
+
+Build in these phases:
+
+PHASE 1:
+Authentication
+Database
+Goals
+Today dashboard
+Daily progress
+
+PHASE 2:
+Focus timer
+Job tracker
+Application pipeline
+
+PHASE 3:
+Learning
+Reading
+Fitness
+Sleep
+
+PHASE 4:
+Analytics
+Weekly review
+Streaks
+
+PHASE 5:
+Claude AI integration
+Job matching
+Resume assistance
+Interview preparation
+AI weekly review
+
+PHASE 6:
+Notifications
+Automation
+Calendar/email integrations
+
+After each phase:
+
+* Run the application
+* Test all major flows
+* Fix errors
+* Verify database operations
+* Verify mobile responsiveness
+* Do not move to the next phase until the current phase works.
+
+==================================================
+27. IMPORTANT PRODUCT RULE
+==========================
+
+The application should NOT encourage unhealthy obsession with productivity.
+
+The purpose is:
+
+Consistency > perfection.
+
+If a user misses a goal, record it honestly and allow them to continue the next day.
+
+Never reset all progress because of one missed day.
+
+==================================================
+28. FIRST TASK
+==============
+
+For now, implement ONLY PHASE 1.
+
+Before writing extensive code:
+
+1. Inspect the Replit environment.
+2. Set up the project structure.
+3. Configure the database.
+4. Create the schema.
+5. Implement authentication.
+6. Implement goals.
+7. Implement daily goal generation.
+8. Implement Today dashboard.
+9. Implement progress tracking.
+10. Implement daily score.
+11. Make the UI mobile responsive.
+12. Add seed/demo data.
+13. Test the complete flow.
+
+Do NOT implement the AI Coach, job tracker, fitness, reading, or advanced analytics yet.
+
+After Phase 1 is working, provide a concise summary of:
+
+* Files created
+* Database tables
+* APIs created
+* Features completed
+* How to run the application
+* Environment variables required
+* Any known limitations
+
+Then wait for the next development phase.

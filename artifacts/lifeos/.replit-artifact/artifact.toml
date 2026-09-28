@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "LifeOS"
+description = "A personal career and life operating system for planning today, tracking measurable progress, and building consistent momentum across career, learning, health, mind, and routine."
+version = "1.0.0"
+id = "artifacts/lifeos"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 25109
+
+[services.development]
+run = "pnpm --filter @workspace/lifeos run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/lifeos", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/lifeos/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "25109"
+BASE_PATH = "/"

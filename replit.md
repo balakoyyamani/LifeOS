@@ -1,6 +1,6 @@
-# [Project name]
+# LifeOS
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+LifeOS is a personal career and life operating system for turning recurring commitments into an honest daily execution view.
 
 ## Run & Operate
 
@@ -22,15 +22,25 @@ _Replace the heading above with the project's name, and this line with one sente
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- `artifacts/lifeos/src/` — React app, Clerk routes, responsive shell, Today view, and Goals management.
+- `artifacts/api-server/src/routes/` — Express REST routes for health, dashboard, today, and goals.
+- `artifacts/api-server/src/lib/lifeos.ts` — user bootstrap, daily-goal generation, scoring, and response mapping.
+- `lib/api-spec/openapi.yaml` — API contract source of truth.
+- `lib/db/src/schema/` — Drizzle schema for users, profiles, goals, daily goals, and goal progress.
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- Clerk owns browser authentication; the API accepts only authenticated Clerk sessions on user-owned routes.
+- Recurring goals are stored separately from date-specific daily goal instances, so changing a goal does not rewrite history.
+- Daily score uses transparent category weights and clamps each measurable goal at 100% completion.
+- New accounts receive a small starter goal set on first authenticated API access so the first Today view is useful.
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+- Public LifeOS landing page with branded Clerk sign-in and sign-up screens.
+- Today view with daily completion, daily score, category balance, streak signal, and incremental progress controls.
+- Goals view with create, edit, pause/resume, and delete flows.
+- Settings view with account status and clearly labeled later-phase areas.
 
 ## User preferences
 
@@ -38,7 +48,9 @@ _Populate as you build — explicit user instructions worth remembering across s
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
+- After changing `lib/api-spec/openapi.yaml`, run `pnpm --filter @workspace/api-spec run codegen`.
+- The generated API client needs `dom.iterable` in `lib/api-client-react/tsconfig.json` for its `Headers.entries()` typing.
+- Production Clerk proxy wiring is mounted at `/api/__clerk`; browser API calls stay same-origin and do not attach bearer tokens.
 
 ## Pointers
 
