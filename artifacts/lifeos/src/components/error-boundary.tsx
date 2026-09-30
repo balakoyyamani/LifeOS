@@ -37,28 +37,33 @@ function toError(value: unknown): Error {
 
 function DefaultFallback({ error, resetError }: ErrorFallbackProps) {
   return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-gray-50 p-6">
-      <div className="max-w-lg w-full text-center">
-        <h1 className="text-xl font-semibold text-gray-900">
-          Something went wrong
-        </h1>
-        <p className="mt-2 text-sm text-gray-600">
-          This part of the app hit an error. The rest of the app is still
-          running.
+    <div className="grain flex min-h-[60dvh] w-full flex-col items-center justify-center bg-background p-6 text-center">
+      <div className="w-full max-w-lg rounded-[28px] border border-border bg-card p-8 shadow-xl">
+        <div className="mx-auto mb-4 flex size-12 items-center justify-center rounded-2xl bg-destructive/10 text-destructive">
+          <span className="text-xl">⚠️</span>
+        </div>
+        <div className="mono-label text-muted-foreground">Workspace Recovery</div>
+        <h2 className="mt-1 text-2xl font-extrabold tracking-[-.04em] text-sidebar">
+          Something took a stumble.
+        </h2>
+        <p className="mt-2 text-sm leading-6 text-muted-foreground">
+          This section encountered an unexpected state, but your data and the rest of LifeOS remain safe.
         </p>
-        {/* Dev only: messages can carry API responses and other internals. */}
         {import.meta.env.DEV ? (
-          <pre className="mt-4 overflow-x-auto rounded bg-gray-100 p-3 text-left text-xs text-gray-800">
+          <pre className="mt-4 max-h-40 overflow-x-auto rounded-xl border border-destructive/20 bg-destructive/5 p-3.5 text-left font-mono text-xs text-destructive">
             {error.message || String(error)}
           </pre>
         ) : null}
-        <button
-          type="button"
-          onClick={resetError}
-          className="mt-4 rounded bg-gray-900 px-4 py-2 text-sm text-white hover:bg-gray-700"
-        >
-          Try again
-        </button>
+        <div className="mt-6 flex justify-center gap-3">
+          <button
+            type="button"
+            onClick={resetError}
+            className="focus-ring rounded-full bg-sidebar px-6 py-2.5 text-xs font-bold text-sidebar-foreground shadow-sm transition hover:opacity-90 active:scale-95"
+            data-testid="button-error-retry"
+          >
+            Reload workspace view
+          </button>
+        </div>
       </div>
     </div>
   );

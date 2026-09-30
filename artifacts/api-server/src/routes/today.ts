@@ -86,19 +86,19 @@ router.patch("/today/goals/:id/progress", async (req, res): Promise<void> => {
     return;
   }
 
+  const clampedValue = Math.max(0, Math.round(body.data.currentValue * 10) / 10);
+  const targetVal = Number(dailyGoal[0].targetValue);
   const nextStatus =
     body.data.status ??
-    (body.data.currentValue >= Number(dailyGoal[0].targetValue)
+    (clampedValue >= targetVal
       ? "completed"
-      : body.data.currentValue <= 0
-      ? "not_started"
-      : body.data.currentValue > 0
+      : clampedValue > 0
         ? "in_progress"
         : "not_started");
 
   await db
     .update(goalProgressTable)
-    .set({ currentValue: String(body.data.currentValue), status: nextStatus })
+    .set({ currentValue: String(clampedValue), status: nextStatus })
     .where(eq(goalProgressTable.dailyGoalId, params.data.id));
 
   const updated = await listTodayGoals(user.id, todayKey(user.timezone));

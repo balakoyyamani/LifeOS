@@ -53,21 +53,50 @@ export async function getOrCreateUser(clerkUserId: string): Promise<{ id: number
     return { id: existing[0].id, timezone: existing[0].timezone ?? "Asia/Calcutta" };
   }
 
-  const [user] = await db.insert(usersTable).values({ clerkUserId }).returning({ id: usersTable.id });
-  await db.insert(profilesTable).values({ userId: user.id });
+  try {
+    const [user] = await db
+      .insert(usersTable)
+      .values({ clerkUserId })
+      .onConflictDoNothing({ target: usersTable.clerkUserId })
+      .returning({ id: usersTable.id });
 
-  const startDate = todayKey();
-  await db.insert(goalsTable).values(
-    starterGoals.map((goal) => ({
-      userId: user.id,
-      ...goal,
-      frequency: "daily",
-      startDate,
-      active: true,
-    })),
-  );
+    if (!user) {
+      // Concurrently created by a parallel request, re-fetch
+      const created = await db
+        .select({ id: usersTable.id, timezone: profilesTable.timezone })
+        .from(usersTable)
+        .leftJoin(profilesTable, eq(profilesTable.userId, usersTable.id))
+        .where(eq(usersTable.clerkUserId, clerkUserId))
+        .limit(1);
+      return { id: created[0].id, timezone: created[0]?.timezone ?? "Asia/Calcutta" };
+    }
 
-  return { id: user.id, timezone: "Asia/Calcutta" };
+    await db.insert(profilesTable).values({ userId: user.id });
+
+    const startDate = todayKey();
+    await db.insert(goalsTable).values(
+      starterGoals.map((goal) => ({
+        userId: user.id,
+        ...goal,
+        frequency: "daily",
+        startDate,
+        active: true,
+      })),
+    );
+
+    return { id: user.id, timezone: "Asia/Calcutta" };
+  } catch (_err) {
+    const fallback = await db
+      .select({ id: usersTable.id, timezone: profilesTable.timezone })
+      .from(usersTable)
+      .leftJoin(profilesTable, eq(profilesTable.userId, usersTable.id))
+      .where(eq(usersTable.clerkUserId, clerkUserId))
+      .limit(1);
+    if (fallback[0]) {
+      return { id: fallback[0].id, timezone: fallback[0].timezone ?? "Asia/Calcutta" };
+    }
+    throw _err;
+  }
 }
 
 export async function ensureDailyGoals(userId: number, dateKey: string): Promise<void> {

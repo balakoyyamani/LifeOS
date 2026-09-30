@@ -1,4 +1,4 @@
-import { SignIn, SignUp } from '@clerk/react';
+import { SignIn, SignUp, AuthenticateWithRedirectCallback } from '@clerk/react';
 import { shadcn } from '@clerk/themes';
 import { ArrowLeft } from 'lucide-react';
 import { Link } from 'wouter';
@@ -29,11 +29,53 @@ const appearance = {
 };
 
 export function SignInPage() {
-  return <AuthFrame><SignIn routing="path" path={`${basePath}/sign-in`} signUpUrl={`${basePath}/sign-up`} appearance={appearance} /></AuthFrame>;
+  return (
+    <AuthFrame>
+      <SignIn
+        routing="path"
+        path={`${basePath}/sign-in`}
+        signUpUrl={`${basePath}/sign-up`}
+        fallbackRedirectUrl={`${basePath}/today`}
+        forceRedirectUrl={`${basePath}/today`}
+        appearance={appearance}
+      />
+    </AuthFrame>
+  );
 }
+
 export function SignUpPage() {
-  return <AuthFrame><SignUp routing="path" path={`${basePath}/sign-up`} signInUrl={`${basePath}/sign-in`} appearance={appearance} /></AuthFrame>;
+  return (
+    <AuthFrame>
+      <SignUp
+        routing="path"
+        path={`${basePath}/sign-up`}
+        signInUrl={`${basePath}/sign-in`}
+        fallbackRedirectUrl={`${basePath}/today`}
+        forceRedirectUrl={`${basePath}/today`}
+        appearance={appearance}
+      />
+    </AuthFrame>
+  );
 }
+
+export function SSOCallbackPage() {
+  return (
+    <AuthFrame>
+      <div className="flex flex-col items-center justify-center p-8 text-center" data-testid="sso-callback-loading">
+        <div className="size-8 animate-spin rounded-full border-2 border-primary border-t-transparent mb-4" />
+        <p className="text-sm font-semibold text-[#243244]">Completing sign in...</p>
+        <p className="text-xs text-[#667181] mt-1">Preparing your LifeOS runway</p>
+        <AuthenticateWithRedirectCallback
+          signInFallbackRedirectUrl={`${basePath}/today`}
+          signUpFallbackRedirectUrl={`${basePath}/today`}
+          signInForceRedirectUrl={`${basePath}/today`}
+          signUpForceRedirectUrl={`${basePath}/today`}
+        />
+      </div>
+    </AuthFrame>
+  );
+}
+
 function AuthFrame({ children }: { children: React.ReactNode }) {
   return <div className="grain flex min-h-[100dvh] flex-col items-center bg-sidebar px-4 py-7"><div className="flex w-full max-w-[440px] justify-between"><Link href="/" className="focus-ring"><BrandMark /></Link><Link href="/" className="focus-ring flex items-center gap-1 text-xs font-bold text-sidebar-foreground/60 hover:text-sidebar-foreground" data-testid="link-auth-back"><ArrowLeft className="size-3.5" /> Back</Link></div><div className="my-auto w-full max-w-[440px] rounded-[24px] bg-background p-1 shadow-2xl">{children}</div><p className="mt-7 text-center text-xs text-sidebar-foreground/45">Your private workspace for the long game.</p></div>;
 }

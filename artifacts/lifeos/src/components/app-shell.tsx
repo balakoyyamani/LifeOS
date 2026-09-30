@@ -1,5 +1,14 @@
 import { useClerk, useUser } from '@clerk/react';
-import { CalendarCheck2, ChevronDown, LogOut, Settings2, Sparkles, Target } from 'lucide-react';
+import {
+  BarChart3,
+  CalendarCheck2,
+  CalendarRange,
+  ChevronDown,
+  LogOut,
+  Settings2,
+  Sparkles,
+  Target,
+} from 'lucide-react';
 import { Link, useLocation } from 'wouter';
 import { BrandMark } from '@/components/brand-mark';
 import { cn } from '@/lib/utils';
@@ -7,6 +16,8 @@ import { cn } from '@/lib/utils';
 const navItems = [
   { href: '/today', label: 'Today', icon: CalendarCheck2 },
   { href: '/goals', label: 'Goals', icon: Target },
+  { href: '/weekly', label: 'Weekly', icon: CalendarRange },
+  { href: '/analytics', label: 'Analytics', icon: BarChart3 },
   { href: '/settings', label: 'Settings', icon: Settings2 },
 ];
 
@@ -61,10 +72,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <main className="min-h-[100dvh] md:pl-[248px]">
         <div className="mx-auto w-full max-w-[1320px] px-5 pb-16 pt-8 sm:px-8 lg:px-12">{children}</div>
       </main>
-      <div className="fixed bottom-4 left-1/2 z-20 flex -translate-x-1/2 items-center gap-1 rounded-full border border-border/80 bg-card/95 p-1.5 shadow-lg backdrop-blur-md md:hidden">
+      <div className="fixed bottom-3.5 left-1/2 z-20 flex max-w-[calc(100vw-20px)] -translate-x-1/2 items-center gap-0.5 rounded-full border border-border/80 bg-card/95 p-1 shadow-lg backdrop-blur-md sm:bottom-4 sm:gap-1 sm:p-1.5 md:hidden">
         {navItems.map(({ href, label, icon: Icon }) => (
-          <Link key={href} href={href} className={cn('focus-ring flex min-w-[72px] flex-col items-center gap-1 rounded-full px-3 py-2 text-[10px] font-bold', location === href ? 'bg-primary text-primary-foreground' : 'text-muted-foreground')} data-testid={`link-mobile-nav-${label.toLowerCase()}`}>
-            <Icon className="size-4" /><span>{label}</span>
+          <Link
+            key={href}
+            href={href}
+            className={cn(
+              'focus-ring flex min-w-[54px] flex-col items-center gap-0.5 rounded-full px-2 py-1.5 text-[9px] font-bold transition-all sm:min-w-[68px] sm:gap-1 sm:px-3 sm:py-2 sm:text-[10px]',
+              location === href
+                ? 'bg-primary text-primary-foreground shadow-xs'
+                : 'text-muted-foreground hover:text-foreground',
+            )}
+            data-testid={`link-mobile-nav-${label.toLowerCase()}`}
+          >
+            <Icon className="size-3.5 sm:size-4" strokeWidth={location === href ? 2.5 : 1.8} />
+            <span>{label}</span>
           </Link>
         ))}
       </div>
@@ -72,17 +94,28 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function ProfileChip() {
+export function ProfileChip({ onOpenTrophies }: { onOpenTrophies?: () => void }) {
   const { user } = useUser();
   const name = user?.firstName || user?.username || 'You';
   return (
-    <div className="flex items-center gap-2.5" data-testid="profile-chip">
-      <div className="grid size-9 place-items-center rounded-full bg-sidebar text-xs font-bold text-sidebar-foreground">{name.slice(0, 1).toUpperCase()}</div>
+    <button
+      type="button"
+      onClick={onOpenTrophies}
+      className="focus-ring flex items-center gap-2.5 rounded-full p-1 text-left transition-all hover:bg-muted/60"
+      data-testid="profile-chip"
+      title="View Profile & Hall of Fame"
+    >
+      <div className="grid size-9 place-items-center rounded-full bg-sidebar text-xs font-bold text-sidebar-foreground shadow-xs">
+        {name.slice(0, 1).toUpperCase()}
+      </div>
       <div className="hidden text-left sm:block">
         <div className="text-xs font-bold">{name}</div>
-        <div className="mono-label text-muted-foreground">personal plan</div>
+        <div className="mono-label text-muted-foreground flex items-center gap-1">
+          <span>personal plan</span>
+          <span className="text-amber-500 text-[10px]">🏆</span>
+        </div>
       </div>
       <ChevronDown className="ml-1 size-3.5 text-muted-foreground" />
-    </div>
+    </button>
   );
 }

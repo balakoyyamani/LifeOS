@@ -10,8 +10,10 @@ import NotFound from '@/pages/not-found';
 import Landing from '@/pages/landing';
 import Today from '@/pages/today';
 import Goals from '@/pages/goals';
+import Analytics from '@/pages/analytics';
+import Weekly from '@/pages/weekly';
 import Settings from '@/pages/settings';
-import { SignInPage, SignUpPage } from '@/pages/auth';
+import { SignInPage, SignUpPage, SSOCallbackPage } from '@/pages/auth';
 import {
   Redirect,
   Route,
@@ -49,10 +51,15 @@ function Router() {
     <RoutedErrorBoundary>
       <Switch>
         <Route path="/" component={HomeRedirect} />
+        <Route path="/sso-callback" component={SSOCallbackPage} />
+        <Route path="/sign-in/sso-callback" component={SSOCallbackPage} />
+        <Route path="/sign-up/sso-callback" component={SSOCallbackPage} />
         <Route path="/sign-in/*?" component={SignInPage} />
         <Route path="/sign-up/*?" component={SignUpPage} />
         <Route path="/today"><Protected><Today /></Protected></Route>
         <Route path="/goals"><Protected><Goals /></Protected></Route>
+        <Route path="/weekly"><Protected><Weekly /></Protected></Route>
+        <Route path="/analytics"><Protected><Analytics /></Protected></Route>
         <Route path="/settings"><Protected><Settings /></Protected></Route>
         <Route component={NotFound} />
       </Switch>
@@ -68,7 +75,35 @@ function RoutedErrorBoundary({ children }: { children: ReactNode }) {
 function ClerkRoutes() {
   const [, setLocation] = useLocation();
   const stripBase = (path: string) => basePath && path.startsWith(basePath) ? path.slice(basePath.length) || '/' : path;
-  return <ClerkProvider publishableKey={clerkPubKey} proxyUrl={clerkProxyUrl} appearance={{ theme: shadcn, cssLayerName: 'clerk', variables: { colorPrimary: '#d8ef6a', colorForeground: '#243244', colorBackground: '#fbfaf4', fontFamily: 'Manrope, sans-serif' } }} signInUrl={`${basePath}/sign-in`} signUpUrl={`${basePath}/sign-up`} routerPush={to => setLocation(stripBase(to))} routerReplace={to => setLocation(stripBase(to), { replace: true })}><QueryClientProvider client={queryClient}><ClerkQueryClientCacheInvalidator /><Router /></QueryClientProvider></ClerkProvider>;
+  return (
+    <ClerkProvider
+      publishableKey={clerkPubKey}
+      proxyUrl={clerkProxyUrl}
+      appearance={{
+        theme: shadcn,
+        cssLayerName: 'clerk',
+        variables: {
+          colorPrimary: '#d8ef6a',
+          colorForeground: '#243244',
+          colorBackground: '#fbfaf4',
+          fontFamily: 'Manrope, sans-serif',
+        },
+      }}
+      signInUrl={`${basePath}/sign-in`}
+      signUpUrl={`${basePath}/sign-up`}
+      signInFallbackRedirectUrl={`${basePath}/today`}
+      signUpFallbackRedirectUrl={`${basePath}/today`}
+      signInForceRedirectUrl={`${basePath}/today`}
+      signUpForceRedirectUrl={`${basePath}/today`}
+      routerPush={to => setLocation(stripBase(to))}
+      routerReplace={to => setLocation(stripBase(to), { replace: true })}
+    >
+      <QueryClientProvider client={queryClient}>
+        <ClerkQueryClientCacheInvalidator />
+        <Router />
+      </QueryClientProvider>
+    </ClerkProvider>
+  );
 }
 
 function App() {
