@@ -28,31 +28,6 @@ const appearance = {
   },
 };
 
-function ClerkDevNotice() {
-  const isDevKeyOnProd =
-    typeof window !== 'undefined' &&
-    window.location.hostname !== 'localhost' &&
-    window.location.hostname !== '127.0.0.1' &&
-    (((window as unknown as { __CLERK_PUBLISHABLE_KEY__?: string }).__CLERK_PUBLISHABLE_KEY__?.startsWith('pk_test_')) ||
-      (import.meta.env.VITE_CLERK_PUBLISHABLE_KEY?.startsWith('pk_test_')));
-
-  if (!isDevKeyOnProd) return null;
-
-  return (
-    <div className="mt-4 rounded-2xl border border-amber-500/30 bg-amber-50/80 p-4 text-xs text-amber-950 shadow-sm" data-testid="clerk-dev-notice">
-      <div className="font-bold flex items-center gap-1.5 mb-1 text-amber-800">
-        <span>⚠️</span> Clerk Development Key on Live Domain
-      </div>
-      <p className="leading-relaxed opacity-90">
-        Clerk restricts <code className="font-mono bg-black/5 px-1 py-0.5 rounded text-[11px]">pk_test_</code> keys from creating sessions on live cloud domains ({typeof window !== 'undefined' ? window.location.hostname : 'onrender.com'}).
-      </p>
-      <p className="mt-2 leading-relaxed opacity-90">
-        To enable login on Render, open your <a href="https://dashboard.clerk.com" target="_blank" rel="noreferrer" className="underline font-bold text-amber-900">Clerk Dashboard</a>, switch to or create a <strong>Production Instance</strong>, and update <code className="font-mono bg-black/5 px-1 py-0.5 rounded text-[11px]">CLERK_PUBLISHABLE_KEY</code> (<code className="font-mono text-[11px]">pk_live_...</code>) in your Render Environment Variables.
-      </p>
-    </div>
-  );
-}
-
 export function SignInPage() {
   return (
     <AuthFrame>
@@ -64,7 +39,6 @@ export function SignInPage() {
         forceRedirectUrl={`${basePath}/today`}
         appearance={appearance}
       />
-      <ClerkDevNotice />
     </AuthFrame>
   );
 }
@@ -80,7 +54,6 @@ export function SignUpPage() {
         forceRedirectUrl={`${basePath}/today`}
         appearance={appearance}
       />
-      <ClerkDevNotice />
     </AuthFrame>
   );
 }

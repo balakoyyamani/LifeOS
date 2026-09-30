@@ -1,6 +1,5 @@
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { ClerkProvider, useAuth, useClerk } from '@clerk/react';
-import { publishableKeyFromHost } from '@clerk/react/internal';
 import { shadcn } from '@clerk/themes';
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { ErrorBoundary } from '@/components/error-boundary';
@@ -27,7 +26,7 @@ const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
 const rawClerkKey =
   (typeof window !== 'undefined' && ((window as unknown as { __CLERK_PUBLISHABLE_KEY__?: string }).__CLERK_PUBLISHABLE_KEY__)) ||
   import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
-const clerkPubKey = rawClerkKey ? publishableKeyFromHost(window.location.hostname, rawClerkKey) : undefined;
+const clerkPubKey = rawClerkKey || undefined;
 const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL;
 
 function HomeRedirect() {
