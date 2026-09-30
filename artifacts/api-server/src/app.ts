@@ -98,11 +98,42 @@ const possibleStaticDirs = [
 const staticDir = possibleStaticDirs[0];
 
 if (staticDir) {
-  app.use(express.static(staticDir));
+  // Disable default automatic index.html serving so root requests pass to our template handler
+  app.use(express.static(staticDir, { index: false }));
+
+  const indexPath = path.join(staticDir, "index.html");
+  let cachedIndexHtml: string | null = null;
+
+  const getTransformedIndexHtml = () => {
+    const rawHtml = fs.readFileSync(indexPath, "utf-8");
+    const clerkKey =
+      process.env.CLERK_PUBLISHABLE_KEY ||
+      process.env.VITE_CLERK_PUBLISHABLE_KEY ||
+      "";
+    if (clerkKey) {
+      const sanitizedKey = JSON.stringify(clerkKey);
+      const scriptTag = `<script>window.__CLERK_PUBLISHABLE_KEY__ = ${sanitizedKey};</script>`;
+      return rawHtml.includes("</head>")
+        ? rawHtml.replace("</head>", `${scriptTag}</head>`)
+        : `${scriptTag}${rawHtml}`;
+    }
+    return rawHtml;
+  };
+
   app.use((req, res, next) => {
     if (req.method === "GET" && !req.path.startsWith("/api")) {
-      res.sendFile(path.join(staticDir, "index.html"));
-      return;
+      try {
+        if (!cachedIndexHtml || process.env.NODE_ENV !== "production") {
+          cachedIndexHtml = getTransformedIndexHtml();
+        }
+        res.setHeader("Content-Type", "text/html; charset=utf-8");
+        res.send(cachedIndexHtml);
+        return;
+      } catch (err) {
+        logger.error({ err }, "Failed to serve index.html");
+        res.sendFile(indexPath);
+        return;
+      }
     }
     next();
   });

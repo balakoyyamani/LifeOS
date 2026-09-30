@@ -22,6 +22,10 @@ COPY scripts/ ./scripts/
 # Install all workspace dependencies
 RUN pnpm install --frozen-lockfile
 
+# Optional build-time argument for Vite frontend bundling
+ARG VITE_CLERK_PUBLISHABLE_KEY
+ENV VITE_CLERK_PUBLISHABLE_KEY=$VITE_CLERK_PUBLISHABLE_KEY
+
 # Typecheck and build production targets (@workspace/lifeos and @workspace/api-server)
 ENV NODE_ENV=production
 RUN pnpm run build
