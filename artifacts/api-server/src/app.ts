@@ -46,24 +46,66 @@ app.use(
   }),
 );
 
+const possibleStaticDirs = [
+  process.env.STATIC_DIR,
+  path.resolve(process.cwd(), "artifacts/lifeos/dist/public"),
+  path.resolve(import.meta.dirname, "../../lifeos/dist/public"),
+  path.resolve(import.meta.dirname, "../../../artifacts/lifeos/dist/public"),
+].filter((d): d is string => Boolean(d && fs.existsSync(d)));
+
+const staticDir = possibleStaticDirs[0];
+
+// Serve static assets directly (CSS, JS, images) before API-specific middlewares
+if (staticDir) {
+  app.use(express.static(staticDir, { index: false }));
+}
+
 app.use(CLERK_PROXY_PATH, clerkProxyMiddleware());
 
-const allowedOrigins = process.env.ALLOWED_ORIGINS
-  ? process.env.ALLOWED_ORIGINS.split(",").map((o) => o.trim())
-  : ["http://localhost:3000", "http://localhost:5000"];
+const rawAllowedOrigins = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(",").map((o) => o.trim()).filter(Boolean)
+  : [];
 
-app.use(
-  cors({
-    credentials: true,
-    origin: (origin, callback) => {
-      if (!origin || allowedOrigins.includes(origin) || process.env.NODE_ENV !== "production") {
-        callback(null, true);
-      } else {
-        callback(new Error(`Origin ${origin} not allowed by CORS`));
-      }
-    },
-  }),
-);
+const isOriginAllowed = (origin: string | undefined, hostHeader?: string, forwardedHost?: string): boolean => {
+  if (!origin) return true;
+  if (process.env.NODE_ENV !== "production") return true;
+
+  try {
+    const originUrl = new URL(origin);
+    const originHost = originUrl.host;
+
+    // Allow same-origin requests (direct host or cloud reverse-proxy host)
+    if (hostHeader && originHost === hostHeader) return true;
+    if (forwardedHost && originHost === forwardedHost.split(",")[0].trim()) return true;
+
+    // Automatically allow Render deployments
+    if (originHost.endsWith(".onrender.com")) return true;
+
+    // Allow explicitly configured origins
+    if (rawAllowedOrigins.some((allowed) => allowed === origin || allowed === originUrl.origin)) {
+      return true;
+    }
+  } catch {
+    return false;
+  }
+  return false;
+};
+
+// Apply CORS with dynamic host inspection (never throw unhandled 500 error)
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  const host = req.headers.host;
+  const forwardedHost = req.headers["x-forwarded-host"] as string | undefined;
+
+  if (isOriginAllowed(origin, host, forwardedHost)) {
+    cors({
+      credentials: true,
+      origin: origin || true,
+    })(req, res, next);
+  } else {
+    next();
+  }
+});
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -88,19 +130,8 @@ app.use(
 
 app.use("/api", apiLimiter, router);
 
-const possibleStaticDirs = [
-  process.env.STATIC_DIR,
-  path.resolve(process.cwd(), "artifacts/lifeos/dist/public"),
-  path.resolve(import.meta.dirname, "../../lifeos/dist/public"),
-  path.resolve(import.meta.dirname, "../../../artifacts/lifeos/dist/public"),
-].filter((d): d is string => Boolean(d && fs.existsSync(d)));
-
-const staticDir = possibleStaticDirs[0];
-
+// SPA client routing fallback (injects runtime Clerk publishable key into index.html)
 if (staticDir) {
-  // Disable default automatic index.html serving so root requests pass to our template handler
-  app.use(express.static(staticDir, { index: false }));
-
   const indexPath = path.join(staticDir, "index.html");
   let cachedIndexHtml: string | null = null;
 
