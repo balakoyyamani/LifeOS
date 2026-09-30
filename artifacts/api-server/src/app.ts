@@ -17,6 +17,9 @@ import { logger } from "./lib/logger";
 
 const app: Express = express();
 
+// Enable trust proxy for cloud deployment (Railway, Render, AWS, Fly.io, Cloudflare)
+app.set("trust proxy", 1);
+
 app.use(
   helmet({
     crossOriginResourcePolicy: { policy: "cross-origin" },

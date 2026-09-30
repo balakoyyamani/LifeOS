@@ -75,6 +75,11 @@ overrides:
   # orval pins js-yaml to an exact version older than the CVE fix (>=4.3.2)
   js-yaml: '4.3.2'
 
+packageExtensions:
+  drizzle-kit:
+    dependencies:
+      drizzle-orm: ^0.45.2
+
 allowBuilds:
   '@clerk/shared': true
   esbuild: true

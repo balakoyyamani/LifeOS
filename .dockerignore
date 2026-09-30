@@ -1,0 +1,16 @@
+node_modules
+.git
+.agents
+.conversation
+.kilo
+.env*
+!.env.production.example
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+dist
+dist-ssr
+*.local
+.DS_Store
+Thumbs.db

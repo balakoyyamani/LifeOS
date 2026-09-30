@@ -75,6 +75,8 @@ overrides:
   esbuild: 0.28.2
   js-yaml: 4.3.2
 
+packageExtensionsChecksum: sha256-+sYZjevkWxjAQzFsIqLG11VQ9cAB3GeWy6w6qSrviqQ=
+
 importers:
 
   .:
@@ -156,6 +158,9 @@ importers:
       thread-stream:
         specifier: 3.1.0
         version: 3.1.0
+      tsx:
+        specifier: 'catalog:'
+        version: 4.23.13
 
   artifacts/lifeos:
     dependencies:
@@ -580,7 +585,7 @@ importers:
         version: 8.23.1
       drizzle-kit:
         specifier: ^0.31.10
-        version: 0.31.10
+        version: 0.31.10(@types/pg@8.23.1)(pg@8.23.0)
 
   scripts:
     devDependencies:
@@ -5251,12 +5256,43 @@ snapshots:
       '@babel/runtime': 7.29.7
       csstype: 3.2.3
 
-  drizzle-kit@0.31.10:
+  drizzle-kit@0.31.10(@types/pg@8.23.1)(pg@8.23.0):
     dependencies:
       '@drizzle-team/brocli': 0.10.2
       '@esbuild-kit/esm-loader': tsx@4.23.13
+      drizzle-orm: 0.45.2(@types/pg@8.23.1)(pg@8.23.0)
       esbuild: 0.28.2
       tsx: 4.23.13
+    transitivePeerDependencies:
+      - '@aws-sdk/client-rds-data'
+      - '@cloudflare/workers-types'
+      - '@electric-sql/pglite'
+      - '@libsql/client'
+      - '@libsql/client-wasm'
+      - '@neondatabase/serverless'
+      - '@op-engineering/op-sqlite'
+      - '@opentelemetry/api'
+      - '@planetscale/database'
+      - '@prisma/client'
+      - '@tidbcloud/serverless'
+      - '@types/better-sqlite3'
+      - '@types/pg'
+      - '@types/sql.js'
+      - '@upstash/redis'
+      - '@vercel/postgres'
+      - '@xata.io/client'
+      - better-sqlite3
+      - bun-types
+      - expo-sqlite
+      - gel
+      - knex
+      - kysely
+      - mysql2
+      - pg
+      - postgres
+      - prisma
+      - sql.js
+      - sqlite3
 
   drizzle-orm@0.45.2(@types/pg@8.23.1)(pg@8.23.0):
     optionalDependencies:
