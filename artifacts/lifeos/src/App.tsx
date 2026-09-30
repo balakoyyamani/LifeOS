@@ -1,5 +1,5 @@
-import { type ReactNode, useEffect, useRef } from 'react';
-import { ClerkProvider, Show, useClerk } from '@clerk/react';
+import { type ReactNode, useEffect, useRef, useState } from 'react';
+import { ClerkProvider, useAuth, useClerk } from '@clerk/react';
 import { publishableKeyFromHost } from '@clerk/react/internal';
 import { shadcn } from '@clerk/themes';
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
@@ -31,11 +31,59 @@ const clerkPubKey = rawClerkKey ? publishableKeyFromHost(window.location.hostnam
 const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL;
 
 function HomeRedirect() {
-  return <><Show when="signed-in"><Redirect to="/today" /></Show><Show when="signed-out"><Landing /></Show></>;
+  if (!clerkPubKey) {
+    return <Landing />;
+  }
+  return <ClerkHomeRedirect />;
+}
+
+function ClerkHomeRedirect() {
+  const { isLoaded, isSignedIn } = useAuth();
+  const [timedOut, setTimedOut] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setTimedOut(true), 2500);
+    return () => clearTimeout(timer);
+  }, []);
+
+  if (!isLoaded && !timedOut) {
+    return (
+      <div className="grain flex min-h-[100dvh] items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-3">
+          <div className="size-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          <span className="mono-label text-xs text-muted-foreground">Opening workspace...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (isSignedIn) {
+    return <Redirect to="/today" />;
+  }
+
+  return <Landing />;
 }
 
 function Protected({ children }: { children: ReactNode }) {
-  return <><Show when="signed-in">{children}</Show><Show when="signed-out"><Redirect to="/" /></Show></>;
+  if (!clerkPubKey) {
+    return <>{children}</>;
+  }
+  return <ClerkProtected>{children}</ClerkProtected>;
+}
+
+function ClerkProtected({ children }: { children: ReactNode }) {
+  const { isLoaded, isSignedIn } = useAuth();
+  if (!isLoaded) {
+    return (
+      <div className="grain flex min-h-[100dvh] items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-3">
+          <div className="size-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          <span className="mono-label text-xs text-muted-foreground">Checking access...</span>
+        </div>
+      </div>
+    );
+  }
+  return isSignedIn ? <>{children}</> : <Redirect to="/" />;
 }
 
 function ClerkQueryClientCacheInvalidator() {
@@ -109,7 +157,24 @@ function ClerkRoutes() {
 }
 
 function App() {
-  return <TooltipProvider><WouterRouter base={basePath}><>{clerkPubKey ? <ClerkRoutes /> : <QueryClientProvider client={queryClient}><Router /></QueryClientProvider>}</></WouterRouter><Toaster /></TooltipProvider>;
+  return (
+    <ErrorBoundary>
+      <TooltipProvider>
+        <WouterRouter base={basePath}>
+          {clerkPubKey ? (
+            <ErrorBoundary>
+              <ClerkRoutes />
+            </ErrorBoundary>
+          ) : (
+            <QueryClientProvider client={queryClient}>
+              <Router />
+            </QueryClientProvider>
+          )}
+        </WouterRouter>
+        <Toaster />
+      </TooltipProvider>
+    </ErrorBoundary>
+  );
 }
 
 export default App;

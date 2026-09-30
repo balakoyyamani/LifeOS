@@ -113,6 +113,9 @@ if (staticDir) {
     if (clerkKey) {
       const sanitizedKey = JSON.stringify(clerkKey);
       const scriptTag = `<script>window.__CLERK_PUBLISHABLE_KEY__ = ${sanitizedKey};</script>`;
+      if (rawHtml.includes("<head>")) {
+        return rawHtml.replace("<head>", `<head>\n    ${scriptTag}`);
+      }
       return rawHtml.includes("</head>")
         ? rawHtml.replace("</head>", `${scriptTag}</head>`)
         : `${scriptTag}${rawHtml}`;

@@ -49,11 +49,9 @@ function DefaultFallback({ error, resetError }: ErrorFallbackProps) {
         <p className="mt-2 text-sm leading-6 text-muted-foreground">
           This section encountered an unexpected state, but your data and the rest of LifeOS remain safe.
         </p>
-        {import.meta.env.DEV ? (
-          <pre className="mt-4 max-h-40 overflow-x-auto rounded-xl border border-destructive/20 bg-destructive/5 p-3.5 text-left font-mono text-xs text-destructive">
-            {error.message || String(error)}
-          </pre>
-        ) : null}
+        <pre className="mt-4 max-h-40 overflow-x-auto rounded-xl border border-destructive/20 bg-destructive/5 p-3.5 text-left font-mono text-xs text-destructive">
+          {error.message || String(error)}
+        </pre>
         <div className="mt-6 flex justify-center gap-3">
           <button
             type="button"
