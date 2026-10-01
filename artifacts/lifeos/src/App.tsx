@@ -130,7 +130,6 @@ function ClerkRoutes() {
       proxyUrl={clerkProxyUrl}
       appearance={{
         theme: shadcn,
-        cssLayerName: 'clerk',
         variables: {
           colorPrimary: '#d8ef6a',
           colorForeground: '#243244',
