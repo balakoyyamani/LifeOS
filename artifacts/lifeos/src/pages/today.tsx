@@ -7,6 +7,8 @@ import {
   Clock3,
   Flame,
   HelpCircle,
+  LayoutGrid,
+  Map,
   Maximize2,
   Minus,
   Moon,
@@ -38,6 +40,7 @@ import {
 import type { Category, DailyGoal, GoalStatus } from '@workspace/api-client-react';
 import { AppShell, ProfileChip } from '@/components/app-shell';
 import { DailyBriefingCard } from '@/components/daily-briefing-card';
+import { DailyRoadmapView } from '@/components/daily-roadmap-view';
 import { EveningReflectionModal } from '@/components/evening-reflection-modal';
 import { HallOfFameModal } from '@/components/hall-of-fame-modal';
 import { RapidReviewModal } from '@/components/rapid-review-modal';
@@ -82,6 +85,7 @@ import {
   isScheduleDueNow,
   requestNotificationPermission,
   saveGoalSchedule,
+  sortGoalsByScheduleTime,
   triggerReminderAlert,
 } from '@/lib/reminders';
 import { getWeekDetails, getWeeklyObjectives } from '@/lib/weekly';
@@ -1102,6 +1106,25 @@ export default function Today() {
   const todayQuery = useGetToday();
   const progressMutation = useUpdateDailyGoalProgress();
   const { toast } = useToast();
+  const { schedules } = useNotifications();
+
+  const [viewMode, setViewMode] = useState<'roadmap' | 'category'>(() => {
+    try {
+      return (localStorage.getItem('lifeos_today_view_mode') as 'roadmap' | 'category') || 'roadmap';
+    } catch {
+      return 'roadmap';
+    }
+  });
+
+  const handleSetViewMode = (mode: 'roadmap' | 'category') => {
+    sound.playClick();
+    setViewMode(mode);
+    try {
+      localStorage.setItem('lifeos_today_view_mode', mode);
+    } catch {
+      // ignore
+    }
+  };
 
   const [inspectingGoal, setInspectingGoal] = useState<DailyGoal | undefined>();
   const [showScoreModal, setShowScoreModal] = useState(false);
@@ -1745,16 +1768,53 @@ export default function Today() {
             {/* Main Runway + Sidebar */}
             <div className="mt-10 grid gap-10 lg:grid-cols-[1fr_320px]">
               <section>
-                <div className="mb-4 flex items-end justify-between">
+                <div className="mb-4 flex flex-col sm:flex-row sm:items-end justify-between gap-3">
                   <div>
                     <div className="mono-label text-muted-foreground">The runway</div>
                     <h2 className="mt-2 text-xl font-extrabold tracking-[-.04em] text-sidebar">
                       What matters today
                     </h2>
                   </div>
-                  <span className="text-xs font-semibold text-muted-foreground">
-                    {displayedGoals.length} {displayedGoals.length === 1 ? 'commitment' : 'commitments'}
-                  </span>
+
+                  <div className="flex items-center gap-2">
+                    {/* View Mode Switcher: Daily Roadmap vs Category Groups */}
+                    <div className="flex items-center gap-1 rounded-xl border border-border/80 bg-card p-1 shadow-xs">
+                      <button
+                        type="button"
+                        onClick={() => handleSetViewMode('roadmap')}
+                        className={cn(
+                          'focus-ring flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-extrabold transition-all',
+                          viewMode === 'roadmap'
+                            ? 'bg-sidebar text-sidebar-foreground shadow-xs'
+                            : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                        )}
+                        title="View daily roadmap ordered chronologically by schedule time"
+                        data-testid="button-view-roadmap"
+                      >
+                        <Map className="size-3.5" />
+                        <span>Daily Roadmap</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSetViewMode('category')}
+                        className={cn(
+                          'focus-ring flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-extrabold transition-all',
+                          viewMode === 'category'
+                            ? 'bg-sidebar text-sidebar-foreground shadow-xs'
+                            : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                        )}
+                        title="View habits grouped by life category"
+                        data-testid="button-view-category"
+                      >
+                        <LayoutGrid className="size-3.5" />
+                        <span>Categories</span>
+                      </button>
+                    </div>
+
+                    <span className="hidden sm:inline text-xs font-semibold text-muted-foreground">
+                      {displayedGoals.length} {displayedGoals.length === 1 ? 'commitment' : 'commitments'}
+                    </span>
+                  </div>
                 </div>
 
                 {/* Grace Day Rest Banner when Shield is Active */}
@@ -1857,35 +1917,54 @@ export default function Today() {
                       {activeRoutineFilter !== 'all' ? ROUTINE_CONFIGS[activeRoutineFilter].label : 'this routine'}.
                     </p>
                   </div>
+                ) : viewMode === 'roadmap' ? (
+                  <DailyRoadmapView
+                    goals={displayedGoals}
+                    schedules={schedules}
+                    anchorGoalId={anchorGoal?.id ?? null}
+                    onUpdate={updateGoal}
+                    onOpenDetails={(g) => setInspectingGoal(g)}
+                    onToggleAnchor={handleToggleAnchor}
+                    onCycleRoutine={handleCycleRoutine}
+                    onOpenZen={(goal) => {
+                      setZenInitialGoal(goal);
+                      setShowZenRoom(true);
+                    }}
+                    categoryStyles={categoryStyles}
+                    pending={progressMutation.isPending}
+                  />
                 ) : (
                   <div className="space-y-4">
-                    {Object.entries(grouped).map(([category, categoryGoals]) => (
-                      <div key={category} className="space-y-3">
-                        <div className="flex items-center gap-2 pt-2">
-                          <span
-                            className={cn(
-                              'size-2 rounded-full',
-                              categoryStyles[category as Category]?.dot,
-                            )}
-                          />
-                          <span className="mono-label text-muted-foreground">
-                            {categoryStyles[category as Category]?.label}
-                          </span>
+                    {Object.entries(grouped).map(([category, categoryGoals]) => {
+                      const sortedCategoryGoals = sortGoalsByScheduleTime(categoryGoals, schedules);
+                      return (
+                        <div key={category} className="space-y-3">
+                          <div className="flex items-center gap-2 pt-2">
+                            <span
+                              className={cn(
+                                'size-2 rounded-full',
+                                categoryStyles[category as Category]?.dot,
+                              )}
+                            />
+                            <span className="mono-label text-muted-foreground">
+                              {categoryStyles[category as Category]?.label}
+                            </span>
+                          </div>
+                          {sortedCategoryGoals.map((goal) => (
+                            <GoalRow
+                              key={goal.id}
+                              goal={goal}
+                              onUpdate={updateGoal}
+                              onOpenDetails={(g) => setInspectingGoal(g)}
+                              isAnchor={anchorGoal?.id === goal.id}
+                              onToggleAnchor={handleToggleAnchor}
+                              onCycleRoutine={handleCycleRoutine}
+                              pending={progressMutation.isPending}
+                            />
+                          ))}
                         </div>
-                        {categoryGoals.map((goal) => (
-                          <GoalRow
-                            key={goal.id}
-                            goal={goal}
-                            onUpdate={updateGoal}
-                            onOpenDetails={(g) => setInspectingGoal(g)}
-                            isAnchor={anchorGoal?.id === goal.id}
-                            onToggleAnchor={handleToggleAnchor}
-                            onCycleRoutine={handleCycleRoutine}
-                            pending={progressMutation.isPending}
-                          />
-                        ))}
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </section>

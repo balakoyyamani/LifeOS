@@ -283,3 +283,100 @@ export function triggerReminderAlert(
     },
   );
 }
+
+// Daily Roadmap & Schedule Stations Support
+export type DayStation = 'morning' | 'midday' | 'evening' | 'night' | 'flexible';
+
+export interface StationConfig {
+  station: DayStation;
+  label: string;
+  timeRange: string;
+  icon: string;
+  badgeBg: string;
+  badgeText: string;
+}
+
+export const STATION_CONFIGS: Record<DayStation, StationConfig> = {
+  morning: {
+    station: 'morning',
+    label: 'Morning Horizon',
+    timeRange: '05:00 – 11:59',
+    icon: '🌅',
+    badgeBg: 'bg-amber-500/10 border-amber-500/20',
+    badgeText: 'text-amber-800 dark:text-amber-300',
+  },
+  midday: {
+    station: 'midday',
+    label: 'Midday & Deep Focus',
+    timeRange: '12:00 – 16:59',
+    icon: '☀️',
+    badgeBg: 'bg-sky-500/10 border-sky-500/20',
+    badgeText: 'text-sky-800 dark:text-sky-300',
+  },
+  evening: {
+    station: 'evening',
+    label: 'Evening Descent',
+    timeRange: '17:00 – 20:59',
+    icon: '🌆',
+    badgeBg: 'bg-indigo-500/10 border-indigo-500/20',
+    badgeText: 'text-indigo-800 dark:text-indigo-300',
+  },
+  night: {
+    station: 'night',
+    label: 'Night Wind-Down',
+    timeRange: '21:00 – 04:59',
+    icon: '🌙',
+    badgeBg: 'bg-purple-500/10 border-purple-500/20',
+    badgeText: 'text-purple-800 dark:text-purple-300',
+  },
+  flexible: {
+    station: 'flexible',
+    label: 'Flexible / Anytime Today',
+    timeRange: 'Unscheduled',
+    icon: '🎒',
+    badgeBg: 'bg-muted border-border/70',
+    badgeText: 'text-muted-foreground',
+  },
+};
+
+export function getScheduleStation(time24?: string): DayStation {
+  if (!time24 || !time24.includes(':')) return 'flexible';
+  const [hStr] = time24.split(':');
+  const h = Number(hStr);
+  if (isNaN(h)) return 'flexible';
+  if (h >= 5 && h < 12) return 'morning';
+  if (h >= 12 && h < 17) return 'midday';
+  if (h >= 17 && h < 21) return 'evening';
+  return 'night';
+}
+
+export function getCurrentTimeHHMM(): string {
+  const now = new Date();
+  const hh = String(now.getHours()).padStart(2, '0');
+  const mm = String(now.getMinutes()).padStart(2, '0');
+  return `${hh}:${mm}`;
+}
+
+export function sortGoalsByScheduleTime<T extends { id: number; priority?: number }>(
+  goals: T[],
+  schedules: Record<number, GoalSchedule>,
+): T[] {
+  return [...goals].sort((a, b) => {
+    const schedA = schedules[a.id];
+    const schedB = schedules[b.id];
+    const timeA = schedA?.enabled && schedA?.time ? schedA.time : null;
+    const timeB = schedB?.enabled && schedB?.time ? schedB.time : null;
+
+    if (timeA && timeB) {
+      return timeA.localeCompare(timeB);
+    }
+    if (timeA && !timeB) return -1;
+    if (!timeA && timeB) return 1;
+
+    // Both unscheduled: order by priority (1 is highest)
+    const prioA = a.priority ?? 2;
+    const prioB = b.priority ?? 2;
+    return prioA - prioB;
+  });
+}
+

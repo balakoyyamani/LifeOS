@@ -40,7 +40,9 @@ import {
   SCHEDULE_PRESETS,
   formatTime12h,
   getGoalSchedule,
+  getGoalSchedules,
   saveGoalSchedule,
+  sortGoalsByScheduleTime,
   requestNotificationPermission,
   triggerReminderAlert,
 } from '@/lib/reminders';
@@ -1047,12 +1049,13 @@ export default function Goals() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<'all' | 'active' | 'paused'>('all');
+  const [sortBy, setSortBy] = useState<'default' | 'schedule' | 'priority'>('default');
 
   const rawGoals = goalsQuery.data ?? [];
 
-  // Filter logic
+  // Filter & Sort logic
   const filteredGoals = useMemo(() => {
-    return rawGoals.filter((goal) => {
+    const filtered = rawGoals.filter((goal) => {
       // Category filter
       if (selectedCategory !== 'all' && goal.category !== selectedCategory) {
         return false;
@@ -1070,7 +1073,18 @@ export default function Goals() {
       }
       return true;
     });
-  }, [rawGoals, selectedCategory, selectedStatus, searchQuery]);
+
+    if (sortBy === 'schedule') {
+      const schedules = getGoalSchedules();
+      return sortGoalsByScheduleTime(filtered, schedules);
+    }
+
+    if (sortBy === 'priority') {
+      return [...filtered].sort((a, b) => a.priority - b.priority);
+    }
+
+    return filtered;
+  }, [rawGoals, selectedCategory, selectedStatus, searchQuery, sortBy]);
 
   const refresh = () => {
     void queryClient.invalidateQueries({ queryKey: getGetGoalsQueryKey() });
@@ -1184,6 +1198,21 @@ export default function Goals() {
                     {st === 'all' ? `All (${rawGoals.length})` : st}
                   </button>
                 ))}
+              </div>
+
+              {/* Sort Selector */}
+              <div className="flex items-center gap-1.5 rounded-full border border-border bg-card px-2.5 py-1 text-xs shadow-xs">
+                <Clock className="size-3.5 text-muted-foreground" />
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value as 'default' | 'schedule' | 'priority')}
+                  className="bg-transparent font-bold text-sidebar text-xs outline-none cursor-pointer"
+                  data-testid="select-goals-sort"
+                >
+                  <option value="default">Default Order</option>
+                  <option value="schedule">Schedule Time ⏰</option>
+                  <option value="priority">Priority</option>
+                </select>
               </div>
             </div>
 
