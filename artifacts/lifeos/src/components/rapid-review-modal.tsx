@@ -18,6 +18,7 @@ import {
 import type { Category, DailyGoal, GoalStatus } from '@workspace/api-client-react';
 import { sound } from '@/lib/sound';
 import { cn } from '@/lib/utils';
+import { ModalPortal } from '@/components/modal-portal';
 
 interface RapidReviewModalProps {
   goals: DailyGoal[];
@@ -225,12 +226,13 @@ export function RapidReviewModal({
   const smartInc = currentGoal ? getSmartIncrement(currentGoal) : { value: 1, label: '+1' };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-sidebar/60 p-4 backdrop-blur-md">
-      <div
-        className="relative w-full max-w-[560px] overflow-hidden rounded-[32px] border border-border bg-background p-6 shadow-2xl sm:p-8"
-        role="dialog"
-        aria-modal="true"
-      >
+    <ModalPortal>
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-sidebar/60 p-4 sm:p-6 backdrop-blur-md">
+        <div
+          className="relative max-h-[85vh] sm:max-h-[88vh] w-full max-w-[560px] overflow-y-auto modal-scroll rounded-[32px] border border-border bg-background p-6 shadow-2xl sm:p-8"
+          role="dialog"
+          aria-modal="true"
+        >
         {/* Top Controls: Sound toggle, Progress bar & Close */}
         <div className="mb-6 flex items-center justify-between">
           <button
@@ -437,5 +439,6 @@ export function RapidReviewModal({
         )}
       </div>
     </div>
+    </ModalPortal>
   );
 }

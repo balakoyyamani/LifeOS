@@ -151,7 +151,7 @@
   button, a, input, select { -webkit-tap-highlight-color: transparent; }
 }
 
-@keyframes rise-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes rise-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 @keyframes draw-in { from { stroke-dashoffset: 300; } to { stroke-dashoffset: 0; } }
 .animate-rise-in { animation: rise-in .55s cubic-bezier(.2,.8,.2,1) both; }
 .animate-rise-in-delay-1 { animation-delay: .08s; }
@@ -162,3 +162,4 @@
 .display-serif { font-family: var(--app-font-serif); }
 .mono-label { font-family: var(--app-font-mono); letter-spacing: .08em; text-transform: uppercase; font-size: 10px; }
 .focus-ring:focus-visible { outline: 2px solid hsl(var(--primary)); outline-offset: 3px; }
+.modal-scroll { overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }

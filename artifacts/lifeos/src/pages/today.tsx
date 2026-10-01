@@ -44,6 +44,7 @@ import { RapidReviewModal } from '@/components/rapid-review-modal';
 import { ResilienceShieldModal } from '@/components/resilience-shield-modal';
 import { RoutineFlowRunner } from '@/components/routine-flow-runner';
 import { ZenFocusRoom } from '@/components/zen-focus-room';
+import { ModalPortal } from '@/components/modal-portal';
 import { type UserStatsSnapshot, evaluateBadges } from '@/lib/badges';
 import {
   type DailyReflection,
@@ -303,13 +304,14 @@ function ProgressAdjustModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-sidebar/50 p-0 backdrop-blur-sm sm:items-center sm:p-5">
-      <div
-        className="max-h-[92dvh] w-full max-w-[520px] overflow-y-auto rounded-t-[32px] border border-border bg-background p-6 shadow-2xl sm:rounded-[32px] sm:p-7"
-        role="dialog"
-        aria-modal="true"
-        data-testid="dialog-progress-adjust"
-      >
+    <ModalPortal>
+      <div className="fixed inset-0 z-50 flex items-end justify-center bg-sidebar/50 p-0 backdrop-blur-sm sm:items-center sm:p-5">
+        <div
+          className="max-h-[88vh] sm:max-h-[85vh] w-full max-w-[520px] overflow-y-auto modal-scroll rounded-t-[32px] border border-border bg-background p-6 shadow-2xl sm:rounded-[32px] sm:p-7"
+          role="dialog"
+          aria-modal="true"
+          data-testid="dialog-progress-adjust"
+        >
         {/* Header */}
         <div className="mb-5 flex items-start justify-between">
           <div className="flex items-start gap-3">
@@ -744,6 +746,7 @@ function ProgressAdjustModal({
         )}
       </div>
     </div>
+    </ModalPortal>
   );
 }
 
@@ -764,12 +767,13 @@ function ScoreBreakdownModal({
   onClose: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-sidebar/50 p-5 backdrop-blur-sm">
-      <div
-        className="w-full max-w-[480px] rounded-[28px] border border-border bg-background p-6 shadow-2xl sm:p-7"
-        role="dialog"
-        aria-modal="true"
-      >
+    <ModalPortal>
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-sidebar/50 p-4 sm:p-5 backdrop-blur-sm">
+        <div
+          className="max-h-[85vh] sm:max-h-[88vh] w-full max-w-[480px] overflow-y-auto modal-scroll rounded-[28px] border border-border bg-background p-6 shadow-2xl sm:p-7"
+          role="dialog"
+          aria-modal="true"
+        >
         <div className="mb-4 flex items-start justify-between">
           <div>
             <div className="mono-label text-accent">Scoring Engine</div>
@@ -843,6 +847,7 @@ function ScoreBreakdownModal({
         </div>
       </div>
     </div>
+    </ModalPortal>
   );
 }
 
@@ -2057,6 +2062,7 @@ export default function Today() {
             </div>
           </>
         )}
+      </div>
 
         {/* Progress Adjust Modal */}
         {inspectingGoal && (
@@ -2155,7 +2161,6 @@ export default function Today() {
             onShieldChanged={() => setShieldVersion((v) => v + 1)}
           />
         )}
-      </div>
     </AppShell>
   );
 }

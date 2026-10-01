@@ -26,6 +26,7 @@ import {
 import { sound } from '@/lib/sound';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { ModalPortal } from '@/components/modal-portal';
 
 interface HallOfFameModalProps {
   stats: UserStatsSnapshot;
@@ -100,14 +101,15 @@ export function HallOfFameModal({ stats, onClose }: HallOfFameModalProps) {
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-md animate-fade-in"
-      onClick={onClose}
-    >
+    <ModalPortal>
       <div
-        className="relative flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-3xl border border-border/80 bg-card shadow-2xl transition-all"
-        onClick={(e) => e.stopPropagation()}
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 sm:p-6 backdrop-blur-md animate-fade-in"
+        onClick={onClose}
       >
+        <div
+          className="relative flex max-h-[85vh] sm:max-h-[88vh] w-full max-w-4xl flex-col overflow-hidden rounded-3xl border border-border/80 bg-card shadow-2xl transition-all"
+          onClick={(e) => e.stopPropagation()}
+        >
         {/* Modal Header */}
         <div className="flex items-center justify-between border-b border-border/60 bg-muted/20 px-6 py-5 sm:px-8">
           <div className="flex items-center gap-3">
@@ -173,7 +175,7 @@ export function HallOfFameModal({ stats, onClose }: HallOfFameModalProps) {
         </div>
 
         {/* 2-Column Content: Badge Grid & Selected Badge Detail */}
-        <div className="grid flex-1 grid-cols-1 overflow-y-auto lg:grid-cols-12">
+        <div className="grid flex-1 grid-cols-1 overflow-y-auto modal-scroll lg:grid-cols-12">
           {/* Badge Grid */}
           <div className="p-6 sm:p-8 lg:col-span-7 space-y-3">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -355,5 +357,6 @@ export function HallOfFameModal({ stats, onClose }: HallOfFameModalProps) {
         </div>
       </div>
     </div>
+    </ModalPortal>
   );
 }

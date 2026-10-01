@@ -28,6 +28,7 @@ import { useGetDashboard, useGetGoals, useGetToday } from '@workspace/api-client
 import type { Category } from '@workspace/api-client-react';
 import { AppShell, ProfileChip } from '@/components/app-shell';
 import { HallOfFameModal } from '@/components/hall-of-fame-modal';
+import { ModalPortal } from '@/components/modal-portal';
 import { type UserStatsSnapshot, evaluateBadges } from '@/lib/badges';
 import { ENERGY_LEVELS, getAllReflections } from '@/lib/reflections';
 import { getWeekDetails, getWeeklyObjectives } from '@/lib/weekly';
@@ -634,15 +635,17 @@ export default function Analytics() {
             </div>
           )}
         </section>
+      </div>
 
         {/* Streak Shield Explanation Modal */}
         {showShieldExplainer && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-sidebar/50 p-5 backdrop-blur-sm">
-            <div
-              className="w-full max-w-[460px] rounded-[28px] border border-border bg-background p-6 shadow-2xl sm:p-7"
-              role="dialog"
-              aria-modal="true"
-            >
+          <ModalPortal>
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-sidebar/50 p-4 sm:p-5 backdrop-blur-sm">
+              <div
+                className="max-h-[85vh] sm:max-h-[88vh] w-full max-w-[460px] overflow-y-auto modal-scroll rounded-[28px] border border-border bg-background p-6 shadow-2xl sm:p-7"
+                role="dialog"
+                aria-modal="true"
+              >
               <div className="mb-4 flex items-start justify-between">
                 <div className="flex items-center gap-3">
                   <div className="grid size-10 place-items-center rounded-xl bg-accent text-accent-foreground">
@@ -684,8 +687,9 @@ export default function Analytics() {
                   Got it
                 </button>
               </div>
+              </div>
             </div>
-          </div>
+          </ModalPortal>
         )}
 
         {/* Hall of Fame Modal */}
@@ -695,7 +699,6 @@ export default function Analytics() {
             onClose={() => setShowHallOfFame(false)}
           />
         )}
-      </div>
     </AppShell>
   );
 }

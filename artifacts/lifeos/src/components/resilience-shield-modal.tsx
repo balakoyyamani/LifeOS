@@ -27,6 +27,7 @@ import {
 import { sound } from '@/lib/sound';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { ModalPortal } from '@/components/modal-portal';
 
 interface ResilienceShieldModalProps {
   dateKey: string;
@@ -91,13 +92,14 @@ export function ResilienceShieldModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-sidebar/60 p-4 backdrop-blur-sm sm:p-6">
-      <div
-        className="w-full max-w-[520px] rounded-[32px] border border-border bg-background p-6 shadow-2xl sm:p-8 animate-in fade-in zoom-in-95 duration-200"
-        role="dialog"
-        aria-modal="true"
-        data-testid="dialog-resilience-shield"
-      >
+    <ModalPortal>
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-sidebar/60 p-4 sm:p-6 backdrop-blur-sm">
+        <div
+          className="max-h-[85vh] sm:max-h-[88vh] w-full max-w-[520px] overflow-y-auto modal-scroll rounded-[32px] border border-border bg-background p-6 shadow-2xl sm:p-8 animate-in fade-in zoom-in-95 duration-200"
+          role="dialog"
+          aria-modal="true"
+          data-testid="dialog-resilience-shield"
+        >
         {/* Header */}
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-center gap-3">
@@ -297,5 +299,6 @@ export function ResilienceShieldModal({
         )}
       </div>
     </div>
+    </ModalPortal>
   );
 }

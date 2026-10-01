@@ -24,6 +24,7 @@ import {
 } from '@/lib/reflections';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { ModalPortal } from '@/components/modal-portal';
 
 interface EveningReflectionModalProps {
   onClose: () => void;
@@ -122,14 +123,15 @@ ${gratitude || 'Grateful for another day of learning and growth.'}
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-md animate-fade-in"
-      onClick={onClose}
-    >
+    <ModalPortal>
       <div
-        className="relative max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-3xl border border-border/80 bg-card p-6 shadow-2xl transition-all sm:p-8"
-        onClick={(e) => e.stopPropagation()}
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 sm:p-6 backdrop-blur-md animate-fade-in"
+        onClick={onClose}
       >
+        <div
+          className="relative max-h-[85vh] sm:max-h-[88vh] w-full max-w-2xl overflow-y-auto modal-scroll rounded-3xl border border-border/80 bg-card p-6 shadow-2xl transition-all sm:p-8"
+          onClick={(e) => e.stopPropagation()}
+        >
         {/* Top Controls */}
         <div className="flex items-center justify-between border-b border-border/60 pb-5">
           <div className="flex items-center gap-2.5">
@@ -390,5 +392,6 @@ ${gratitude || 'Grateful for another day of learning and growth.'}
         )}
       </div>
     </div>
+    </ModalPortal>
   );
 }

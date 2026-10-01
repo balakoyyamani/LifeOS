@@ -25,6 +25,7 @@ import { sound } from '@/lib/sound';
 import { type SoundscapeType, soundscapes } from '@/lib/soundscapes';
 import { Slider } from '@/components/ui/slider';
 import { cn } from '@/lib/utils';
+import { ModalPortal } from '@/components/modal-portal';
 
 interface ZenFocusRoomProps {
   goals: DailyGoal[];
@@ -149,7 +150,8 @@ export function ZenFocusRoom({
   );
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col justify-between bg-[#0b101b] p-6 text-white backdrop-blur-xl sm:p-10 select-none">
+    <ModalPortal>
+      <div className="fixed inset-0 z-50 flex flex-col justify-between bg-[#0b101b] p-6 text-white backdrop-blur-xl sm:p-10 select-none">
       {/* Background ambient radial glow */}
       <div className="pointer-events-none absolute inset-0 flex items-center justify-center overflow-hidden opacity-30">
         <div
@@ -344,5 +346,6 @@ export function ZenFocusRoom({
         )}
       </footer>
     </div>
+    </ModalPortal>
   );
 }

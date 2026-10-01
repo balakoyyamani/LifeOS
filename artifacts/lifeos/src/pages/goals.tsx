@@ -32,6 +32,7 @@ import {
 } from '@workspace/api-client-react';
 import type { Category, Frequency, Goal, GoalInput } from '@workspace/api-client-react';
 import { AppShell, ProfileChip } from '@/components/app-shell';
+import { ModalPortal } from '@/components/modal-portal';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { sound } from '@/lib/sound';
@@ -424,13 +425,14 @@ function GoalForm({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-sidebar/50 p-0 backdrop-blur-sm sm:items-center sm:p-5">
-      <div
-        className="max-h-[92dvh] w-full max-w-[640px] overflow-y-auto rounded-t-[32px] border border-border bg-background p-6 shadow-2xl sm:rounded-[32px] sm:p-8"
-        role="dialog"
-        aria-modal="true"
-        data-testid="dialog-goal-form"
-      >
+    <ModalPortal>
+      <div className="fixed inset-0 z-50 flex items-end justify-center bg-sidebar/50 p-0 backdrop-blur-sm sm:items-center sm:p-5">
+        <div
+          className="max-h-[88vh] sm:max-h-[85vh] w-full max-w-[640px] overflow-y-auto modal-scroll rounded-t-[32px] border border-border bg-background p-6 shadow-2xl sm:rounded-[32px] sm:p-8"
+          role="dialog"
+          aria-modal="true"
+          data-testid="dialog-goal-form"
+        >
         <div className="mb-6 flex items-start justify-between">
           <div>
             <div className="mono-label text-accent">
@@ -894,6 +896,7 @@ function GoalForm({
         </form>
       </div>
     </div>
+    </ModalPortal>
   );
 }
 
@@ -1300,6 +1303,7 @@ export default function Goals() {
             </div>
           </>
         )}
+      </div>
 
         {/* Modal Form */}
         {formOpen && (
@@ -1312,40 +1316,41 @@ export default function Goals() {
 
         {/* Confirmation Modal */}
         {confirming && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-sidebar/50 p-5 backdrop-blur-sm">
-            <div className="w-full max-w-[400px] rounded-[28px] border border-border bg-background p-7 shadow-2xl">
-              <div className="mb-4 flex size-11 items-center justify-center rounded-2xl bg-destructive/10 text-destructive">
-                <Trash2 className="size-5" />
-              </div>
-              <h2 className="text-xl font-extrabold tracking-[-.04em] text-sidebar">
-                Remove this goal?
-              </h2>
-              <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                “{confirming.name}” will stop appearing in your daily runway. Past logged history remains safe.
-              </p>
-              <div className="mt-7 flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setConfirming(undefined)}
-                  className="focus-ring rounded-full px-4 py-2.5 text-xs font-bold text-muted-foreground hover:bg-muted"
-                  data-testid="button-cancel-delete-goal"
-                >
-                  Keep it
-                </button>
-                <button
-                  type="button"
-                  onClick={deleteGoal}
-                  disabled={remove.isPending}
-                  className="focus-ring rounded-full bg-destructive px-5 py-2.5 text-xs font-extrabold text-destructive-foreground disabled:opacity-50"
-                  data-testid="button-confirm-delete-goal"
-                >
-                  {remove.isPending ? 'Removing…' : 'Remove goal'}
-                </button>
+          <ModalPortal>
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-sidebar/50 p-4 sm:p-5 backdrop-blur-sm">
+              <div className="w-full max-w-[400px] rounded-[28px] border border-border bg-background p-7 shadow-2xl">
+                <div className="mb-4 flex size-11 items-center justify-center rounded-2xl bg-destructive/10 text-destructive">
+                  <Trash2 className="size-5" />
+                </div>
+                <h2 className="text-xl font-extrabold tracking-[-.04em] text-sidebar">
+                  Remove this goal?
+                </h2>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                  “{confirming.name}” will stop appearing in your daily runway. Past logged history remains safe.
+                </p>
+                <div className="mt-7 flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setConfirming(undefined)}
+                    className="focus-ring rounded-full px-4 py-2.5 text-xs font-bold text-muted-foreground hover:bg-muted"
+                    data-testid="button-cancel-delete-goal"
+                  >
+                    Keep it
+                  </button>
+                  <button
+                    type="button"
+                    onClick={deleteGoal}
+                    disabled={remove.isPending}
+                    className="focus-ring rounded-full bg-destructive px-5 py-2.5 text-xs font-extrabold text-destructive-foreground disabled:opacity-50"
+                    data-testid="button-confirm-delete-goal"
+                  >
+                    {remove.isPending ? 'Removing…' : 'Remove goal'}
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
+          </ModalPortal>
         )}
-      </div>
     </AppShell>
   );
 }

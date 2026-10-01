@@ -21,6 +21,7 @@ import { ROUTINE_CONFIGS, type RoutineType } from '@/lib/routines';
 import { sound } from '@/lib/sound';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { ModalPortal } from '@/components/modal-portal';
 
 interface RoutineFlowRunnerProps {
   routine: RoutineType;
@@ -140,14 +141,15 @@ export function RoutineFlowRunner({
   const goalProgressPct = Math.min(100, Math.round((currentVal / currentGoal.targetValue) * 100));
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-xl animate-fade-in"
-      onClick={onClose}
-    >
+    <ModalPortal>
       <div
-        className="relative flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-3xl border border-border/80 bg-card shadow-2xl transition-all"
-        onClick={(e) => e.stopPropagation()}
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 sm:p-6 backdrop-blur-xl animate-fade-in"
+        onClick={onClose}
       >
+        <div
+          className="relative flex max-h-[85vh] sm:max-h-[88vh] w-full max-w-2xl flex-col overflow-hidden rounded-3xl border border-border/80 bg-card shadow-2xl transition-all"
+          onClick={(e) => e.stopPropagation()}
+        >
         {/* Top Routine Status Header */}
         <div className="flex items-center justify-between border-b border-border/60 bg-muted/20 px-6 py-4 sm:px-8">
           <div className="flex items-center gap-3">
@@ -192,7 +194,7 @@ export function RoutineFlowRunner({
 
         {!isCompleted ? (
           /* Center Stage: Active Habit Card */
-          <div className="flex flex-1 flex-col justify-between p-6 sm:p-8 space-y-6 overflow-y-auto">
+          <div className="flex flex-1 flex-col justify-between p-6 sm:p-8 space-y-6 overflow-y-auto modal-scroll">
             {/* Philosophical Prompt */}
             <div className="rounded-2xl border border-border/60 bg-muted/30 p-3.5 text-xs text-muted-foreground italic flex items-center justify-between">
               <span>"{config.quote}"</span>
@@ -367,5 +369,6 @@ export function RoutineFlowRunner({
         )}
       </div>
     </div>
+    </ModalPortal>
   );
 }
