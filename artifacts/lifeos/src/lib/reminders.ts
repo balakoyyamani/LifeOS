@@ -1,14 +1,38 @@
-import type { DailyGoal } from '@workspace/api-client-react';
 import { sound } from '@/lib/sound';
 
 export interface GoalSchedule {
   goalId: number;
+  name?: string;
   time: string; // "HH:mm" (24-hour format, e.g. "08:30", "14:00")
   enabled: boolean;
   lastNotifiedDate?: string; // "YYYY-MM-DD" to avoid repeated reminders on the same day
 }
 
-const STORAGE_KEY = 'lifeos_goal_schedules_registry';
+export interface NotificationItem {
+  id: string;
+  type: 'goal_reminder' | 'morning_kickoff' | 'evening_reflection' | 'streak_milestone' | 'system';
+  title: string;
+  message: string;
+  timestamp: string; // ISO string
+  goalId?: number;
+  read: boolean;
+  snoozedUntil?: string; // ISO string
+  url?: string;
+}
+
+export interface RoutineRemindersLocal {
+  morningKickoffEnabled: boolean;
+  morningKickoffTime: string;
+  eveningReflectionEnabled: boolean;
+  eveningReflectionTime: string;
+  lastMorningDate?: string;
+  lastEveningDate?: string;
+}
+
+const SCHEDULE_STORAGE_KEY = 'lifeos_goal_schedules_registry';
+const HISTORY_STORAGE_KEY = 'lifeos_notifications_history';
+const SNOOZE_STORAGE_KEY = 'lifeos_snoozed_reminders';
+const ROUTINE_STORAGE_KEY = 'lifeos_routine_reminders_local';
 
 export const SCHEDULE_PRESETS = [
   { label: 'Morning', time: '08:00', icon: '🌅', hint: '8:00 AM' },
@@ -20,7 +44,7 @@ export const SCHEDULE_PRESETS = [
 
 export function getGoalSchedules(): Record<number, GoalSchedule> {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(SCHEDULE_STORAGE_KEY);
     return raw ? JSON.parse(raw) : {};
   } catch {
     return {};
@@ -36,7 +60,7 @@ export function saveGoalSchedule(schedule: GoalSchedule): void {
   try {
     const all = getGoalSchedules();
     all[schedule.goalId] = schedule;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(all));
+    localStorage.setItem(SCHEDULE_STORAGE_KEY, JSON.stringify(all));
   } catch (err) {
     console.error('Failed to save goal schedule:', err);
   }
@@ -46,7 +70,7 @@ export function removeGoalSchedule(goalId: number): void {
   try {
     const all = getGoalSchedules();
     delete all[goalId];
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(all));
+    localStorage.setItem(SCHEDULE_STORAGE_KEY, JSON.stringify(all));
   } catch (err) {
     console.error('Failed to remove goal schedule:', err);
   }
@@ -82,6 +106,112 @@ export function isScheduleDueNow(time24: string): boolean {
   return diff >= -5 && diff <= 45;
 }
 
+
+// Routine Reminders Management
+export function getRoutineReminders(): RoutineRemindersLocal {
+  try {
+    const raw = localStorage.getItem(ROUTINE_STORAGE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return {
+    morningKickoffEnabled: true,
+    morningKickoffTime: '08:30',
+    eveningReflectionEnabled: true,
+    eveningReflectionTime: '21:00',
+  };
+}
+
+export function saveRoutineReminders(config: RoutineRemindersLocal): void {
+  try {
+    localStorage.setItem(ROUTINE_STORAGE_KEY, JSON.stringify(config));
+  } catch (err) {
+    console.error('Failed to save routine reminders:', err);
+  }
+}
+
+// Notification History & Log
+export function getNotificationHistory(): NotificationItem[] {
+  try {
+    const raw = localStorage.getItem(HISTORY_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function addNotificationToHistory(item: Omit<NotificationItem, 'id' | 'timestamp' | 'read'>): NotificationItem {
+  try {
+    const list = getNotificationHistory();
+    const newItem: NotificationItem = {
+      ...item,
+      id: `notif-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      timestamp: new Date().toISOString(),
+      read: false,
+    };
+    const updated = [newItem, ...list].slice(0, 50); // Keep max 50 items
+    localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(updated));
+    return newItem;
+  } catch (err) {
+    console.error('Failed to append notification to history:', err);
+    return {
+      ...item,
+      id: `notif-${Date.now()}`,
+      timestamp: new Date().toISOString(),
+      read: false,
+    };
+  }
+}
+
+export function markNotificationRead(id: string): void {
+  try {
+    const list = getNotificationHistory();
+    const updated = list.map((n) => (n.id === id ? { ...n, read: true } : n));
+    localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(updated));
+  } catch {}
+}
+
+export function markAllNotificationsRead(): void {
+  try {
+    const list = getNotificationHistory();
+    const updated = list.map((n) => ({ ...n, read: true }));
+    localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(updated));
+  } catch {}
+}
+
+export function clearNotificationHistory(): void {
+  try {
+    localStorage.removeItem(HISTORY_STORAGE_KEY);
+  } catch {}
+}
+
+// Snooze Management
+export function snoozeReminder(key: string, minutes = 10): void {
+  try {
+    const raw = localStorage.getItem(SNOOZE_STORAGE_KEY);
+    const snoozes: Record<string, number> = raw ? JSON.parse(raw) : {};
+    snoozes[key] = Date.now() + minutes * 60 * 1000;
+    localStorage.setItem(SNOOZE_STORAGE_KEY, JSON.stringify(snoozes));
+  } catch {}
+}
+
+export function isReminderSnoozed(key: string): boolean {
+  try {
+    const raw = localStorage.getItem(SNOOZE_STORAGE_KEY);
+    if (!raw) return false;
+    const snoozes: Record<string, number> = JSON.parse(raw);
+    const expiry = snoozes[key];
+    if (!expiry) return false;
+    if (Date.now() < expiry) return true;
+    // Expired, clean up
+    delete snoozes[key];
+    localStorage.setItem(SNOOZE_STORAGE_KEY, JSON.stringify(snoozes));
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+// Browser Desktop Notifications
 export function isNotificationSupported(): boolean {
   return typeof window !== 'undefined' && 'Notification' in window;
 }
@@ -101,18 +231,32 @@ export async function requestNotificationPermission(): Promise<boolean> {
   }
 }
 
-export function sendBrowserNotification(title: string, body: string, icon = '⏰') {
+export function sendBrowserNotification(
+  title: string,
+  body: string,
+  options?: { url?: string; tag?: string; onClick?: () => void },
+) {
   if (!isNotificationSupported() || Notification.permission !== 'granted') {
     return;
   }
 
   try {
-    new Notification(title, {
+    const notif = new Notification(title, {
       body,
-      icon: '/favicon.ico',
-      badge: '/favicon.ico',
-      tag: `lifeos-reminder-${Date.now()}`,
+      icon: '/favicon.svg',
+      badge: '/favicon.svg',
+      tag: options?.tag || `lifeos-reminder-${Date.now()}`,
     });
+
+    notif.onclick = () => {
+      window.focus();
+      if (options?.onClick) {
+        options.onClick();
+      } else if (options?.url && typeof window !== 'undefined') {
+        window.location.href = options.url;
+      }
+      notif.close();
+    };
   } catch (err) {
     console.warn('Browser notification error:', err);
   }
@@ -123,12 +267,19 @@ export function triggerReminderAlert(
   timeFormatted: string,
   onOpen?: () => void,
 ) {
-  // Play procedural audio chime
-  sound.playReminderChime();
+  // Respect quiet mode
+  const isQuiet = typeof localStorage !== 'undefined' && localStorage.getItem('lifeos-quiet') === 'true';
 
-  // Trigger system notification if granted
+  if (!isQuiet) {
+    sound.playReminderChime();
+  }
+
   sendBrowserNotification(
     `⏰ Time for: ${goalName}`,
     `Scheduled for ${timeFormatted}. Maintain your rhythm!`,
+    {
+      url: '/today',
+      onClick: onOpen,
+    },
   );
 }

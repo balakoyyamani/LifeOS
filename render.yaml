@@ -21,3 +21,12 @@ services:
         sync: false
       - key: ALLOWED_ORIGINS
         sync: false
+      - key: VAPID_PUBLIC_KEY
+        sync: false
+      - key: VITE_VAPID_PUBLIC_KEY
+        sync: false
+      - key: VAPID_PRIVATE_KEY
+        sync: false
+      - key: VAPID_SUBJECT
+        value: mailto:balakoyyamani@gmail.com
+

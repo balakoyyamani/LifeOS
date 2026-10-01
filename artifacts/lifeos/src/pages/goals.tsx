@@ -403,10 +403,12 @@ function GoalForm({
       if (goalId && scheduledTime.trim()) {
         saveGoalSchedule({
           goalId,
+          name: data.name,
           time: scheduledTime.trim(),
           enabled: reminderEnabled,
         });
       }
+
       void queryClient.invalidateQueries({ queryKey: getGetGoalsQueryKey() });
       void queryClient.invalidateQueries({ queryKey: getGetTodayQueryKey() });
       void queryClient.invalidateQueries({ queryKey: getGetDashboardQueryKey() });

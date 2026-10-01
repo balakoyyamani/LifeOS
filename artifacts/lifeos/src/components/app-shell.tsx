@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { Link, useLocation } from 'wouter';
 import { BrandMark } from '@/components/brand-mark';
+import { NotificationCenter } from '@/components/notification-center';
 import { cn } from '@/lib/utils';
 
 const navItems = [
@@ -59,7 +60,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       <header className="sticky top-0 z-20 flex h-[68px] items-center justify-between border-b border-border/70 bg-background/90 px-5 backdrop-blur-md md:hidden">
         <Link href="/today" className="focus-ring" data-testid="link-mobile-home"><BrandMark /></Link>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
+          <NotificationCenter />
           <Link href="/settings" className="focus-ring flex size-9 items-center justify-center rounded-full border border-border bg-card text-muted-foreground" data-testid="link-mobile-settings">
             <Settings2 className="size-4" />
           </Link>
@@ -94,28 +96,37 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function ProfileChip({ onOpenTrophies }: { onOpenTrophies?: () => void }) {
+export function ProfileChip({
+  onOpenTrophies,
+  showNotifications = true,
+}: {
+  onOpenTrophies?: () => void;
+  showNotifications?: boolean;
+}) {
   const { user } = useUser();
   const name = user?.firstName || user?.username || 'You';
   return (
-    <button
-      type="button"
-      onClick={onOpenTrophies}
-      className="focus-ring flex items-center gap-2.5 rounded-full p-1 text-left transition-all hover:bg-muted/60"
-      data-testid="profile-chip"
-      title="View Profile & Hall of Fame"
-    >
-      <div className="grid size-9 place-items-center rounded-full bg-sidebar text-xs font-bold text-sidebar-foreground shadow-xs">
-        {name.slice(0, 1).toUpperCase()}
-      </div>
-      <div className="hidden text-left sm:block">
-        <div className="text-xs font-bold">{name}</div>
-        <div className="mono-label text-muted-foreground flex items-center gap-1">
-          <span>personal plan</span>
-          <span className="text-amber-500 text-[10px]">🏆</span>
+    <div className="flex items-center gap-2.5">
+      {showNotifications && <NotificationCenter />}
+      <button
+        type="button"
+        onClick={onOpenTrophies}
+        className="focus-ring flex items-center gap-2.5 rounded-full p-1 text-left transition-all hover:bg-muted/60"
+        data-testid="profile-chip"
+        title="View Profile & Hall of Fame"
+      >
+        <div className="grid size-9 place-items-center rounded-full bg-sidebar text-xs font-bold text-sidebar-foreground shadow-xs">
+          {name.slice(0, 1).toUpperCase()}
         </div>
-      </div>
-      <ChevronDown className="ml-1 size-3.5 text-muted-foreground" />
-    </button>
+        <div className="hidden text-left sm:block">
+          <div className="text-xs font-bold">{name}</div>
+          <div className="mono-label text-muted-foreground flex items-center gap-1">
+            <span>personal plan</span>
+            <span className="text-amber-500 text-[10px]">🏆</span>
+          </div>
+        </div>
+        <ChevronDown className="ml-1 size-3.5 text-muted-foreground" />
+      </button>
+    </div>
   );
 }

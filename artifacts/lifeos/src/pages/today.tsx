@@ -45,6 +45,10 @@ import { ResilienceShieldModal } from '@/components/resilience-shield-modal';
 import { RoutineFlowRunner } from '@/components/routine-flow-runner';
 import { ZenFocusRoom } from '@/components/zen-focus-room';
 import { ModalPortal } from '@/components/modal-portal';
+import { ActivitySchedulePopover } from '@/components/activity-schedule-popover';
+import { useNotifications } from '@/context/notification-context';
+
+
 import { type UserStatsSnapshot, evaluateBadges } from '@/lib/badges';
 import {
   type DailyReflection,
@@ -190,14 +194,17 @@ function ProgressAdjustModal({
   const [schedEnabled, setSchedEnabled] = useState<boolean>(existingSchedule?.enabled ?? false);
   const [notifPerm, setNotifPerm] = useState(getNotificationPermission());
   const { toast } = useToast();
+  const { updateGoalSchedule } = useNotifications();
 
   const handleSaveSchedule = () => {
     sound.playClick();
-    saveGoalSchedule({
+    updateGoalSchedule({
       goalId: goal.id,
+      name: goal.name,
       time: schedTime,
       enabled: schedEnabled,
     });
+
     toast({
       title: schedEnabled ? 'Reminder Scheduled ⏰' : 'Reminder Disabled',
       description: schedEnabled
@@ -1001,31 +1008,9 @@ function GoalRow({
               </button>
             )}
 
-            {/* Scheduled Reminder Badge */}
-            {(() => {
-              const sched = getGoalSchedule(goal.id);
-              if (!sched || !sched.enabled || !sched.time) return null;
-              const due = isScheduleDueNow(sched.time) && !completed && !skipped;
-              return (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onOpenDetails(goal);
-                  }}
-                  className={cn(
-                    'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold border transition-all hover:scale-105 active:scale-95',
-                    due
-                      ? 'border-amber-500/70 bg-amber-400/20 text-amber-800 ring-1 ring-amber-500/40 animate-pulse'
-                      : 'border-border/80 bg-muted/30 text-muted-foreground hover:bg-muted hover:text-foreground',
-                  )}
-                  title={`Scheduled for ${formatTime12h(sched.time)} (Click to adjust)`}
-                >
-                  <Clock3 className={cn('size-3', due ? 'text-amber-600' : 'text-primary')} />
-                  <span>{due ? 'Due now' : formatTime12h(sched.time)}</span>
-                </button>
-              );
-            })()}
+            {/* Direct Activity Scheduled Reminder Popover */}
+            <ActivitySchedulePopover goal={goal} />
+
 
             {skipped && (
               <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-bold text-muted-foreground">
@@ -1363,49 +1348,6 @@ export default function Today() {
       },
     );
   };
-
-  // Background Watcher: Check scheduled reminders every 15 seconds
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const schedules = getGoalSchedules();
-      const todayStr = getTodayDateString();
-      const now = new Date();
-      const currentHHMM = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-
-      goals.forEach((goal) => {
-        const schedule = schedules[goal.id];
-        if (
-          schedule &&
-          schedule.enabled &&
-          schedule.time === currentHHMM &&
-          schedule.lastNotifiedDate !== todayStr &&
-          goal.status !== 'completed'
-        ) {
-          schedule.lastNotifiedDate = todayStr;
-          saveGoalSchedule(schedule);
-
-          triggerReminderAlert(goal.name, formatTime12h(schedule.time));
-
-          toast({
-            title: `⏰ Time for: ${goal.name}`,
-            description: `Scheduled for ${formatTime12h(schedule.time)}. Ready to take action?`,
-            action: (
-              <button
-                type="button"
-                onClick={() => updateGoal(goal, goal.targetValue, 'completed')}
-                className="focus-ring inline-flex items-center gap-1 rounded-md bg-primary px-2.5 py-1 text-xs font-bold text-primary-foreground shadow-xs hover:opacity-90"
-              >
-                <Check className="size-3" />
-                Done
-              </button>
-            ),
-          });
-        }
-      });
-    }, 15000);
-
-    return () => clearInterval(interval);
-  }, [goals, updateGoal, toast]);
 
   const date = dashboard?.date ? new Date(dashboard.date) : new Date();
   const dateLabel = date.toLocaleDateString('en-US', {

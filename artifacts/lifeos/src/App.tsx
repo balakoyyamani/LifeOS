@@ -13,6 +13,7 @@ import Analytics from '@/pages/analytics';
 import Weekly from '@/pages/weekly';
 import Settings from '@/pages/settings';
 import { SignInPage, SignUpPage, SSOCallbackPage } from '@/pages/auth';
+import { NotificationProvider } from '@/context/notification-context';
 import {
   Redirect,
   Route,
@@ -20,6 +21,7 @@ import {
   Router as WouterRouter,
   useLocation,
 } from 'wouter';
+
 
 const queryClient = new QueryClient();
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
@@ -97,24 +99,27 @@ function Router() {
   return (
     // Keep a shared shell (sidebar, navbar) outside the boundary so it
     // survives a page crash.
-    <RoutedErrorBoundary>
-      <Switch>
-        <Route path="/" component={HomeRedirect} />
-        <Route path="/sso-callback" component={SSOCallbackPage} />
-        <Route path="/sign-in/sso-callback" component={SSOCallbackPage} />
-        <Route path="/sign-up/sso-callback" component={SSOCallbackPage} />
-        <Route path="/sign-in/*?" component={SignInPage} />
-        <Route path="/sign-up/*?" component={SignUpPage} />
-        <Route path="/today"><Protected><Today /></Protected></Route>
-        <Route path="/goals"><Protected><Goals /></Protected></Route>
-        <Route path="/weekly"><Protected><Weekly /></Protected></Route>
-        <Route path="/analytics"><Protected><Analytics /></Protected></Route>
-        <Route path="/settings"><Protected><Settings /></Protected></Route>
-        <Route component={NotFound} />
-      </Switch>
-    </RoutedErrorBoundary>
+    <NotificationProvider>
+      <RoutedErrorBoundary>
+        <Switch>
+          <Route path="/" component={HomeRedirect} />
+          <Route path="/sso-callback" component={SSOCallbackPage} />
+          <Route path="/sign-in/sso-callback" component={SSOCallbackPage} />
+          <Route path="/sign-up/sso-callback" component={SSOCallbackPage} />
+          <Route path="/sign-in/*?" component={SignInPage} />
+          <Route path="/sign-up/*?" component={SignUpPage} />
+          <Route path="/today"><Protected><Today /></Protected></Route>
+          <Route path="/goals"><Protected><Goals /></Protected></Route>
+          <Route path="/weekly"><Protected><Weekly /></Protected></Route>
+          <Route path="/analytics"><Protected><Analytics /></Protected></Route>
+          <Route path="/settings"><Protected><Settings /></Protected></Route>
+          <Route component={NotFound} />
+        </Switch>
+      </RoutedErrorBoundary>
+    </NotificationProvider>
   );
 }
+
 
 function RoutedErrorBoundary({ children }: { children: ReactNode }) {
   const [location] = useLocation();
