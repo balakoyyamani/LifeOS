@@ -11,6 +11,7 @@ import {
   getOAuthDiscoveryConfig,
   getOAuthProtectedResourceConfig,
   listMcpTokens,
+  registerOAuthClient,
   revokeMcpToken,
 } from "../services/mcp-auth-service";
 import { logger } from "../logger";
@@ -49,6 +50,20 @@ const handleProtectedResource = (req: Request, res: Response) => {
 
 router.get("/.well-known/oauth-protected-resource", handleProtectedResource);
 router.get("/.well-known/oauth-protected-resource/mcp", handleProtectedResource);
+
+// -----------------------------------------------------------------------------
+// OAUTH 2.0 DYNAMIC CLIENT REGISTRATION (RFC 7591)
+// -----------------------------------------------------------------------------
+router.post("/oauth/register", (req: Request, res: Response): void => {
+  try {
+    const registration = registerOAuthClient(req.body || {});
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
+    res.status(201).json(registration);
+  } catch (err: any) {
+    logger.error({ err }, "Error in /oauth/register");
+    res.status(400).json({ error: "invalid_client_metadata", error_description: err?.message || "Registration failed." });
+  }
+});
 
 // -----------------------------------------------------------------------------
 // OAUTH 2.1 AUTHORIZATION & TOKEN ENDPOINTS
@@ -104,15 +119,16 @@ router.get("/oauth/authorize", async (req: Request, res: Response): Promise<void
 
 router.post("/oauth/token", async (req: Request, res: Response): Promise<void> => {
   try {
-    let { grant_type, code, redirect_uri, client_id, code_verifier } = req.body || {};
+    let { grant_type, code, redirect_uri, client_id, client_secret, code_verifier } = req.body || {};
 
-    // Also support client_id via HTTP Basic Authorization header if omitted from body
+    // Also support client_id and client_secret via HTTP Basic Authorization header if omitted from body
     const authHeader = req.headers.authorization;
-    if (!client_id && authHeader && authHeader.startsWith("Basic ")) {
+    if (authHeader && authHeader.startsWith("Basic ")) {
       try {
         const creds = Buffer.from(authHeader.slice(6), "base64").toString("utf-8");
-        const [id] = creds.split(":");
-        if (id) client_id = id;
+        const [id, secret] = creds.split(":");
+        if (id && !client_id) client_id = id;
+        if (secret && !client_secret) client_secret = secret;
       } catch {}
     }
 
@@ -121,14 +137,15 @@ router.post("/oauth/token", async (req: Request, res: Response): Promise<void> =
       return;
     }
 
-    if (!code || !code_verifier) {
-      res.status(400).json({ error: "invalid_request", error_description: "Missing required code or code_verifier." });
+    if (!code) {
+      res.status(400).json({ error: "invalid_request", error_description: "Missing required code." });
       return;
     }
 
     const tokenResponse = await exchangeAuthorizationCode({
       code,
       clientId: client_id,
+      clientSecret: client_secret,
       redirectUri: redirect_uri,
       codeVerifier: code_verifier,
     });

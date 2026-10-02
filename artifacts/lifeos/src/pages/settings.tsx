@@ -920,36 +920,88 @@ function McpSettingsSection() {
                     <Sparkles className="size-4" />
                   </div>
                   <div>
-                    <h3 className="text-sm font-bold text-sidebar">Connect to Google Gemini & Spark</h3>
-                    <p className="text-[11px] text-muted-foreground">Use in Google AI Studio, Gemini Custom Gems, or Vertex AI Agents.</p>
+                    <h3 className="text-sm font-bold text-sidebar">Connect to Google Gemini MCP</h3>
+                    <p className="text-[11px] text-muted-foreground">Official Gemini Connected Apps (MCP), AI Studio & Spark integration.</p>
                   </div>
                 </div>
-                <span className="rounded-md bg-muted px-2 py-0.5 text-[10px] font-mono text-muted-foreground">Function Calling / HTTP</span>
+                <span className="rounded-md bg-muted px-2 py-0.5 text-[10px] font-mono text-muted-foreground">OAuth 2.1 + RFC 7591</span>
               </div>
 
-              <div className="space-y-3 text-xs text-muted-foreground">
-                <p>
-                  Google Gemini models support external tool execution via Streamable HTTP and function-calling schemas.
-                </p>
-
+              <div className="space-y-3.5 text-xs text-muted-foreground">
+                {/* Method 1: Automatic Registration */}
                 <div className="rounded-lg border border-border/80 bg-muted/20 p-3.5 space-y-2">
-                  <span className="text-xs font-bold text-sidebar">Quick Setup Steps:</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="grid size-5 place-items-center rounded-full bg-blue-600 text-[10px] font-bold text-white">1</span>
+                    <span className="text-xs font-bold text-sidebar">Method A: Automatic Registration (One-Click)</span>
+                  </div>
                   <ol className="list-decimal list-inside space-y-1.5 leading-relaxed">
-                    <li>Open <strong>Google AI Studio</strong> or your <strong>Gemini Agent Builder</strong>.</li>
-                    <li>Add a Webhook / API Tool targeting: <code className="rounded bg-muted px-1 font-mono text-[11px] text-foreground select-all">{mcpEndpoint}</code></li>
-                    <li>Set Authorization header: <code className="rounded bg-muted px-1 font-mono text-[11px] text-foreground">Bearer {activeTokenPlaceholder}</code></li>
-                    <li>Gemini will dynamically call <code className="font-mono text-accent">get_today</code>, <code className="font-mono text-accent">start_timer</code>, and <code className="font-mono text-accent">create_schedule</code>.</li>
+                    <li>In Gemini, click <strong>Settings</strong> → <strong>Connected Apps</strong> → <strong>Connect to an MCP server</strong>.</li>
+                    <li>Enter MCP Server URL: <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] text-foreground select-all">{mcpEndpoint}</code></li>
+                    <li>Click <strong>Next</strong> — Gemini auto-registers via RFC 7591 and prompts you to authorize your LifeOS account.</li>
                   </ol>
                 </div>
 
-                <div className="flex items-center justify-between rounded-lg bg-muted/40 p-2.5 border border-border/60 text-[11px]">
-                  <span className="font-mono text-muted-foreground truncate">Discovery URL: {discoveryUrl}</span>
+                {/* Method 2: Manual OAuth Credentials */}
+                <div className="rounded-lg border border-border/80 bg-muted/20 p-3.5 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <span className="grid size-5 place-items-center rounded-full bg-sidebar text-[10px] font-bold text-sidebar-foreground">2</span>
+                      <span className="text-xs font-bold text-sidebar">Method B: Manual OAuth Client Credentials</span>
+                    </div>
+                    <span className="text-[10px] text-muted-foreground">If Gemini requests Client ID / Secret</span>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    If Gemini opens <em>"Additional settings"</em> asking for Client ID and Secret, paste the following values:
+                  </p>
+
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <div className="rounded-lg border border-border bg-background p-2.5 space-y-1">
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="font-bold text-sidebar">Client ID</span>
+                        <button
+                          type="button"
+                          onClick={() => copySnippet('gemini_cid', 'lifeos-gemini-client')}
+                          className="font-bold text-accent hover:opacity-80 flex items-center gap-1"
+                        >
+                          {copiedSnippet === 'gemini_cid' ? <Check className="size-3 text-emerald-500" /> : <Copy className="size-3" />}
+                          <span>{copiedSnippet === 'gemini_cid' ? 'Copied' : 'Copy'}</span>
+                        </button>
+                      </div>
+                      <div className="font-mono text-xs text-foreground select-all bg-muted/30 px-2 py-1 rounded">
+                        lifeos-gemini-client
+                      </div>
+                    </div>
+
+                    <div className="rounded-lg border border-border bg-background p-2.5 space-y-1">
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="font-bold text-sidebar">Client Secret</span>
+                        <button
+                          type="button"
+                          onClick={() => copySnippet('gemini_sec', 'lifeos-gemini-secret')}
+                          className="font-bold text-accent hover:opacity-80 flex items-center gap-1"
+                        >
+                          {copiedSnippet === 'gemini_sec' ? <Check className="size-3 text-emerald-500" /> : <Copy className="size-3" />}
+                          <span>{copiedSnippet === 'gemini_sec' ? 'Copied' : 'Copy'}</span>
+                        </button>
+                      </div>
+                      <div className="font-mono text-xs text-foreground select-all bg-muted/30 px-2 py-1 rounded">
+                        lifeos-gemini-secret
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between rounded-lg bg-blue-500/10 border border-blue-500/20 px-3 py-2 text-xs text-blue-900 dark:text-blue-300">
+                  <span className="flex items-center gap-1.5">
+                    <CheckCircle2 className="size-4 shrink-0 text-blue-600" />
+                    <span>Gemini will have full access to your routines, timers, schedules, and analytics!</span>
+                  </span>
                   <button
                     type="button"
-                    onClick={() => copySnippet('gemini_disc', discoveryUrl)}
-                    className="font-bold text-sidebar hover:text-accent ml-2 shrink-0"
+                    onClick={() => copySnippet('prompt_gemini', 'Check my LifeOS routines and tell me what is next.')}
+                    className="font-bold underline hover:opacity-80 shrink-0 ml-2"
                   >
-                    {copiedSnippet === 'gemini_disc' ? 'Copied' : 'Copy'}
+                    {copiedSnippet === 'prompt_gemini' ? 'Copied!' : 'Copy Test Prompt'}
                   </button>
                 </div>
               </div>

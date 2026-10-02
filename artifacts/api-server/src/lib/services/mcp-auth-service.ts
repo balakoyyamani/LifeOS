@@ -141,8 +141,9 @@ export async function generateOAuthToken(
 export async function exchangeAuthorizationCode(data: {
   code: string;
   clientId?: string;
+  clientSecret?: string;
   redirectUri?: string;
-  codeVerifier: string;
+  codeVerifier?: string;
 }) {
   const now = new Date();
 
@@ -165,10 +166,15 @@ export async function exchangeAuthorizationCode(data: {
     throw new Error("client_id mismatch.");
   }
 
-  // 3. Verify PKCE S256 code challenge
-  const calculatedChallenge = sha256Base64Url(data.codeVerifier);
-  if (calculatedChallenge !== record.codeChallenge) {
-    throw new Error("PKCE verification failed: code_verifier does not match code_challenge.");
+  // 3. Verify PKCE S256 code challenge if one was used during authorization
+  if (record.codeChallenge) {
+    if (!data.codeVerifier) {
+      throw new Error("Missing code_verifier for PKCE code exchange.");
+    }
+    const calculatedChallenge = sha256Base64Url(data.codeVerifier);
+    if (calculatedChallenge !== record.codeChallenge) {
+      throw new Error("PKCE verification failed: code_verifier does not match code_challenge.");
+    }
   }
 
   // 4. One-time code use: delete the authorization code
@@ -185,12 +191,64 @@ export async function exchangeAuthorizationCode(data: {
   };
 }
 
+export interface RegisteredOAuthClient {
+  clientId: string;
+  clientSecret: string;
+  clientName: string;
+  redirectUris: string[];
+  grantTypes: string[];
+  responseTypes: string[];
+  tokenEndpointAuthMethod: string;
+  createdAt: number;
+}
+
+const registeredClients = new Map<string, RegisteredOAuthClient>();
+
+export function registerOAuthClient(params: {
+  client_name?: string;
+  redirect_uris?: string[];
+  grant_types?: string[];
+  response_types?: string[];
+  token_endpoint_auth_method?: string;
+  scope?: string;
+}) {
+  const clientId = `los_client_${randomBytes(16).toString("hex")}`;
+  const clientSecret = `los_secret_${randomBytes(24).toString("hex")}`;
+  const now = Math.floor(Date.now() / 1000);
+
+  const client: RegisteredOAuthClient = {
+    clientId,
+    clientSecret,
+    clientName: params.client_name || "Google Gemini / MCP Client",
+    redirectUris: params.redirect_uris || [],
+    grantTypes: params.grant_types || ["authorization_code", "refresh_token"],
+    responseTypes: params.response_types || ["code"],
+    tokenEndpointAuthMethod: params.token_endpoint_auth_method || "none",
+    createdAt: now,
+  };
+
+  registeredClients.set(clientId, client);
+
+  return {
+    client_id: clientId,
+    client_secret: clientSecret,
+    client_id_issued_at: now,
+    client_secret_expires_at: 0,
+    client_name: client.clientName,
+    redirect_uris: client.redirectUris,
+    grant_types: client.grantTypes,
+    response_types: client.responseTypes,
+    token_endpoint_auth_method: client.tokenEndpointAuthMethod,
+  };
+}
+
 export function getOAuthDiscoveryConfig(baseUrl: string) {
   const normalizedBase = baseUrl.replace(/\/$/, "");
   return {
     issuer: normalizedBase,
     authorization_endpoint: `${normalizedBase}/oauth/authorize`,
     token_endpoint: `${normalizedBase}/oauth/token`,
+    registration_endpoint: `${normalizedBase}/oauth/register`,
     token_endpoint_auth_methods_supported: ["none", "client_secret_post", "client_secret_basic"],
     response_types_supported: ["code"],
     grant_types_supported: ["authorization_code", "refresh_token"],
@@ -211,3 +269,4 @@ export function getOAuthProtectedResourceConfig(baseUrl: string) {
     resource_documentation: `${normalizedBase}/docs/mcp`,
   };
 }
+
