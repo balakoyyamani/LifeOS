@@ -4,11 +4,13 @@ import { db, routinesTable, routineItemsTable, schedulesTable } from "@workspace
 export async function createRoutine(
   userId: number,
   data: {
-    name: string;
+    name?: string;
+    title?: string;
     description?: string;
     items?: Array<{
       title: string;
-      startTime: string; // "07:00"
+      startTime?: string;
+      startAt?: string;
       durationMinutes?: number;
       scheduleId?: number;
     }>;
@@ -18,7 +20,7 @@ export async function createRoutine(
     .insert(routinesTable)
     .values({
       userId,
-      name: data.name,
+      name: data.name || data.title || "Routine",
       description: data.description || null,
       active: true,
     })
@@ -33,7 +35,7 @@ export async function createRoutine(
         .values({
           routineId: routine.id,
           title: item.title,
-          startTime: item.startTime,
+          startTime: item.startTime || item.startAt || "08:00",
           durationMinutes: item.durationMinutes ?? 30,
           scheduleId: item.scheduleId || null,
           orderIndex: i,

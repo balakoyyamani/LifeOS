@@ -22,7 +22,8 @@ export async function createJobApplication(
   userId: number,
   data: {
     company: string;
-    role: string;
+    role?: string;
+    position?: string;
     status?: string;
     appliedDate?: string;
     interviewDate?: string;
@@ -38,7 +39,7 @@ export async function createJobApplication(
     .values({
       userId,
       company: data.company,
-      role: data.role,
+      role: data.role || data.position || "Candidate",
       status: data.status || "applied",
       appliedDate,
       interviewDate: data.interviewDate ? new Date(data.interviewDate) : null,

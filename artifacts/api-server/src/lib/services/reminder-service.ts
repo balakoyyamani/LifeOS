@@ -22,7 +22,7 @@ export async function createReminder(
     .values({
       userId,
       title: data.title,
-      message: data.message,
+      message: data.message || data.title,
       remindAt: remindAtDate,
       scheduleId: data.scheduleId || null,
       goalId: data.goalId || null,
