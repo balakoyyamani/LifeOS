@@ -7,12 +7,13 @@
     "dev": "node --env-file-if-exists=.env ./build.mjs && node --env-file-if-exists=.env --enable-source-maps ./dist/index.mjs",
     "build": "node --env-file-if-exists=.env ./build.mjs",
     "start": "node --env-file-if-exists=.env --enable-source-maps ./dist/index.mjs",
-    "test": "tsx --test src/lib/lifeos.test.ts",
+    "test": "tsx --test src/lib/lifeos.test.ts src/lib/schedule.test.ts src/lib/mcp.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
     "@clerk/express": "^2.1.72",
     "@clerk/shared": "^4.36.0",
+    "@modelcontextprotocol/sdk": "^1.31.0",
     "@workspace/api-zod": "workspace:*",
     "@workspace/db": "workspace:*",
     "cookie-parser": "^1.4.7",

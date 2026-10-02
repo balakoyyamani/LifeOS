@@ -11,6 +11,7 @@ import {
   clerkProxyMiddleware,
 } from "./middlewares/clerkProxyMiddleware";
 import router from "./routes";
+import mcpRouter from "./lib/mcp/router";
 import { logger } from "./lib/logger";
 
 const app: Express = express();
@@ -125,6 +126,8 @@ app.use(
     secretKey: process.env.CLERK_SECRET_KEY,
   }),
 );
+
+app.use(mcpRouter);
 
 app.use("/api", apiLimiter, router);
 

@@ -2,10 +2,14 @@ import { useEffect, useState } from 'react';
 import {
   ArrowRight,
   Bell,
+  Bot,
   CalendarRange,
   Check,
   ChevronRight,
   Clock3,
+  Copy,
+  Cpu,
+  Key,
   Moon,
   Palette,
   Radio,
@@ -14,6 +18,7 @@ import {
   Smartphone,
   Sparkles,
   Sun,
+  Trash2,
   UserRound,
   Volume2,
 } from 'lucide-react';
@@ -149,6 +154,9 @@ export default function Settings() {
 
           {/* Notifications & Closed-App Push Section */}
           <NotificationSettingsSection />
+
+          {/* Model Context Protocol (MCP) & ChatGPT Integration */}
+          <McpSettingsSection />
 
 
           {/* Weekly Rhythms & Reflection Portal */}
@@ -505,6 +513,218 @@ function NotificationSettingsSection() {
           <Volume2 className="size-3.5 text-accent" />
           <span>Test Notification Chime</span>
         </button>
+      </div>
+    </section>
+  );
+}
+
+function McpSettingsSection() {
+  const [tokens, setTokens] = useState<Array<{ id: number; name: string; tokenPrefix: string; createdAt: string; lastUsedAt: string | null }>>([]);
+  const [loading, setLoading] = useState(false);
+  const [newToken, setNewToken] = useState<string | null>(null);
+  const [copiedEndpoint, setCopiedEndpoint] = useState(false);
+  const [copiedToken, setCopiedToken] = useState(false);
+  const [tokenName, setTokenName] = useState('ChatGPT Assistant');
+
+  const mcpEndpoint = typeof window !== 'undefined' ? `${window.location.origin}/mcp` : 'https://lifesos.online/mcp';
+
+  const fetchTokens = async () => {
+    try {
+      setLoading(true);
+      const res = await fetch('/api/mcp/tokens', { credentials: 'include' });
+      if (res.ok) {
+        const data = await res.json();
+        setTokens(data.tokens || []);
+      }
+    } catch (err) {
+      console.error('Failed to load MCP tokens', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void fetchTokens();
+  }, []);
+
+  const handleGenerate = async () => {
+    try {
+      setLoading(true);
+      const res = await fetch('/api/mcp/tokens', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ name: tokenName || 'ChatGPT Assistant' }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setNewToken(data.rawToken);
+        void fetchTokens();
+      }
+    } catch (err) {
+      console.error('Failed to generate token', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRevoke = async (id: number) => {
+    try {
+      const res = await fetch(`/api/mcp/tokens/${id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (res.ok) {
+        setTokens((prev) => prev.filter((t) => t.id !== id));
+      }
+    } catch (err) {
+      console.error('Failed to revoke token', err);
+    }
+  };
+
+  const copyToClipboard = (text: string, setCopied: (v: boolean) => void) => {
+    void navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <section className="rounded-2xl border border-border bg-card p-5 sm:p-6 shadow-sm space-y-5">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="grid size-9 place-items-center rounded-xl bg-accent/20 text-accent">
+            <Bot className="size-4" />
+          </div>
+          <div>
+            <h2 className="font-extrabold text-sidebar">Model Context Protocol (MCP)</h2>
+            <p className="text-xs text-muted-foreground">
+              Connect ChatGPT, Claude, or Cursor to securely interact with your LifeOS account.
+            </p>
+          </div>
+        </div>
+        <span className="rounded-full bg-emerald-500/15 px-2.5 py-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+          Streamable HTTP Active
+        </span>
+      </div>
+
+      {/* Endpoint URL Card */}
+      <div className="rounded-xl border border-border/80 bg-muted/30 p-4 space-y-2.5">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+            Production MCP Endpoint
+          </span>
+          <span className="text-[11px] font-semibold text-primary">
+            42 Tools Supported
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <input
+            type="text"
+            readOnly
+            value={mcpEndpoint}
+            className="flex-1 rounded-lg border border-input bg-background px-3 py-1.5 text-xs font-mono font-medium text-foreground select-all"
+          />
+          <button
+            type="button"
+            onClick={() => copyToClipboard(mcpEndpoint, setCopiedEndpoint)}
+            className="focus-ring inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-bold text-sidebar hover:bg-muted active:scale-95 transition-all"
+          >
+            {copiedEndpoint ? <Check className="size-3.5 text-emerald-500" /> : <Copy className="size-3.5" />}
+            <span>{copiedEndpoint ? 'Copied' : 'Copy URL'}</span>
+          </button>
+        </div>
+        <p className="text-[11px] text-muted-foreground">
+          Supports both Streamable HTTP transport and OAuth 2.1 / PKCE auto-discovery.
+        </p>
+      </div>
+
+      {/* New Token Banner if generated */}
+      {newToken && (
+        <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4 space-y-2 animate-fade-in">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400">
+              🔑 New MCP Access Token Generated
+            </span>
+            <span className="text-[10px] text-emerald-600 font-semibold">Copy now — won't be shown again</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              readOnly
+              value={newToken}
+              className="flex-1 rounded-lg border border-emerald-500/40 bg-background px-3 py-1.5 text-xs font-mono font-bold text-emerald-600 select-all"
+            />
+            <button
+              type="button"
+              onClick={() => copyToClipboard(newToken, setCopiedToken)}
+              className="focus-ring inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-emerald-700 active:scale-95 transition-all"
+            >
+              {copiedToken ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+              <span>{copiedToken ? 'Copied' : 'Copy Token'}</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Generate Token Section */}
+      <div className="rounded-xl border border-border/70 p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-bold text-sidebar uppercase tracking-wider">
+            Personal Access Tokens
+          </span>
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={tokenName}
+              onChange={(e) => setTokenName(e.target.value)}
+              placeholder="Client Name (e.g. ChatGPT)"
+              className="rounded-lg border border-input bg-background px-2.5 py-1 text-xs text-foreground w-40 sm:w-48"
+            />
+            <button
+              type="button"
+              disabled={loading}
+              onClick={handleGenerate}
+              className="focus-ring inline-flex items-center gap-1.5 rounded-lg bg-sidebar px-3 py-1 text-xs font-bold text-sidebar-foreground hover:opacity-90 active:scale-95 disabled:opacity-50"
+            >
+              <Key className="size-3 text-accent" />
+              <span>Generate Token</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Existing Tokens List */}
+        <div className="divide-y divide-border/60">
+          {tokens.length === 0 ? (
+            <div className="py-3 text-center text-xs text-muted-foreground">
+              No active MCP tokens yet. Generate one to connect ChatGPT or other AI agents.
+            </div>
+          ) : (
+            tokens.map((tok) => (
+              <div key={tok.id} className="flex items-center justify-between py-2.5">
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-sidebar">{tok.name}</span>
+                    <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground">
+                      {tok.tokenPrefix}
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-muted-foreground">
+                    Created {new Date(tok.createdAt).toLocaleDateString()}
+                    {tok.lastUsedAt && ` • Last used ${new Date(tok.lastUsedAt).toLocaleDateString()}`}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleRevoke(tok.id)}
+                  className="rounded-lg p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
+                  title="Revoke Token"
+                >
+                  <Trash2 className="size-3.5" />
+                </button>
+              </div>
+            ))
+          )}
+        </div>
       </div>
     </section>
   );

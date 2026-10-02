@@ -1,7 +1,7 @@
 import app from "./app";
 import { logger } from "./lib/logger";
 import { pool } from "@workspace/db";
-import { ensureNotificationTables } from "./lib/db-init";
+import { ensureAllTables } from "./lib/db-init";
 import { startScheduleDispatcher, stopScheduleDispatcher } from "./lib/schedule-dispatcher";
 
 const rawPort = process.env["PORT"] || "5000";
@@ -14,7 +14,7 @@ if (Number.isNaN(port) || port <= 0) {
 
 const server = app.listen(port, async () => {
   logger.info({ port }, "Server listening");
-  await ensureNotificationTables();
+  await ensureAllTables();
   startScheduleDispatcher();
 });
 

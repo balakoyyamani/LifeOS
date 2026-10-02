@@ -1,5 +1,5 @@
-import { db, pushSubscriptionsTable, userRemindersConfigTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { db, pushSubscriptionsTable, userRemindersConfigTable, remindersTable } from "@workspace/db";
+import { and, eq, lte } from "drizzle-orm";
 import { logger } from "./logger";
 import { sendPushToSubscription } from "./webpush";
 
@@ -72,6 +72,36 @@ export async function checkAndDispatchReminders() {
           );
         }
       };
+
+      // 0. Check One-time and Scheduled Reminders from remindersTable
+      try {
+        const dueReminders = await db
+          .select()
+          .from(remindersTable)
+          .where(
+            and(
+              eq(remindersTable.userId, config.userId),
+              eq(remindersTable.status, "pending"),
+              lte(remindersTable.remindAt, new Date()),
+            ),
+          );
+
+        for (const rem of dueReminders) {
+          logger.info({ userId: config.userId, reminderId: rem.id }, "Dispatching custom reminder push");
+          await pushAll({
+            title: `🔔 ${rem.title}`,
+            body: rem.message,
+            url: "/today",
+            goalId: rem.goalId || undefined,
+          });
+          await db
+            .update(remindersTable)
+            .set({ status: "sent", sentAt: new Date() })
+            .where(eq(remindersTable.id, rem.id));
+        }
+      } catch (err) {
+        logger.debug({ err }, "Could not query pending reminders in dispatcher cycle");
+      }
 
       // 1. Check Morning Kickoff
       if (
