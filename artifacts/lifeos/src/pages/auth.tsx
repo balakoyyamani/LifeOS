@@ -28,13 +28,16 @@ const appearance = {
 };
 
 export function SignInPage() {
+  const searchParams = new URLSearchParams(window.location.search);
+  const redirectUrl = searchParams.get("redirect_url") || `${basePath}/today`;
+
   return (
     <AuthFrame>
       <SignIn
         routing="hash"
         signUpUrl={`${basePath}/sign-up`}
-        fallbackRedirectUrl={`${basePath}/today`}
-        forceRedirectUrl={`${basePath}/today`}
+        fallbackRedirectUrl={redirectUrl}
+        forceRedirectUrl={redirectUrl}
         appearance={appearance}
       />
     </AuthFrame>
@@ -42,13 +45,16 @@ export function SignInPage() {
 }
 
 export function SignUpPage() {
+  const searchParams = new URLSearchParams(window.location.search);
+  const redirectUrl = searchParams.get("redirect_url") || `${basePath}/today`;
+
   return (
     <AuthFrame>
       <SignUp
         routing="hash"
         signInUrl={`${basePath}/sign-in`}
-        fallbackRedirectUrl={`${basePath}/today`}
-        forceRedirectUrl={`${basePath}/today`}
+        fallbackRedirectUrl={redirectUrl}
+        forceRedirectUrl={redirectUrl}
         appearance={appearance}
       />
     </AuthFrame>

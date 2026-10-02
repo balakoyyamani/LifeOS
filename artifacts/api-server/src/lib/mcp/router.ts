@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { Router, type Request, type Response } from "express";
 import rateLimit from "express-rate-limit";
 import { resolveUserFromAuthHeader, runWithAuth } from "../auth-context";
@@ -8,6 +9,7 @@ import {
   exchangeAuthorizationCode,
   generateMcpToken,
   getOAuthDiscoveryConfig,
+  getOAuthProtectedResourceConfig,
   listMcpTokens,
   revokeMcpToken,
 } from "../services/mcp-auth-service";
@@ -32,7 +34,7 @@ function getBaseUrl(req: Request): string {
 }
 
 // -----------------------------------------------------------------------------
-// OAUTH 2.1 DISCOVERY ENDPOINTS
+// OAUTH 2.1 & RFC 9728 DISCOVERY ENDPOINTS
 // -----------------------------------------------------------------------------
 const handleDiscovery = (req: Request, res: Response) => {
   res.json(getOAuthDiscoveryConfig(getBaseUrl(req)));
@@ -40,6 +42,13 @@ const handleDiscovery = (req: Request, res: Response) => {
 
 router.get("/.well-known/oauth-authorization-server", handleDiscovery);
 router.get("/.well-known/openid-configuration", handleDiscovery);
+
+const handleProtectedResource = (req: Request, res: Response) => {
+  res.json(getOAuthProtectedResourceConfig(getBaseUrl(req)));
+};
+
+router.get("/.well-known/oauth-protected-resource", handleProtectedResource);
+router.get("/.well-known/oauth-protected-resource/mcp", handleProtectedResource);
 
 // -----------------------------------------------------------------------------
 // OAUTH 2.1 AUTHORIZATION & TOKEN ENDPOINTS
@@ -57,6 +66,11 @@ router.get("/oauth/authorize", async (req: Request, res: Response): Promise<void
 
     if (!client_id || !redirect_uri) {
       res.status(400).send("Missing client_id or redirect_uri.");
+      return;
+    }
+
+    if (response_type && response_type !== "code") {
+      res.status(400).send("Unsupported response_type. LifeOS only supports 'code'.");
       return;
     }
 
@@ -90,10 +104,25 @@ router.get("/oauth/authorize", async (req: Request, res: Response): Promise<void
 
 router.post("/oauth/token", async (req: Request, res: Response): Promise<void> => {
   try {
-    const { grant_type, code, redirect_uri, client_id, code_verifier } = req.body;
+    let { grant_type, code, redirect_uri, client_id, code_verifier } = req.body || {};
+
+    // Also support client_id via HTTP Basic Authorization header if omitted from body
+    const authHeader = req.headers.authorization;
+    if (!client_id && authHeader && authHeader.startsWith("Basic ")) {
+      try {
+        const creds = Buffer.from(authHeader.slice(6), "base64").toString("utf-8");
+        const [id] = creds.split(":");
+        if (id) client_id = id;
+      } catch {}
+    }
 
     if (grant_type !== "authorization_code") {
       res.status(400).json({ error: "unsupported_grant_type", error_description: "Only authorization_code supported." });
+      return;
+    }
+
+    if (!code || !code_verifier) {
+      res.status(400).json({ error: "invalid_request", error_description: "Missing required code or code_verifier." });
       return;
     }
 
@@ -104,6 +133,7 @@ router.post("/oauth/token", async (req: Request, res: Response): Promise<void> =
       codeVerifier: code_verifier,
     });
 
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
     res.json(tokenResponse);
   } catch (err: any) {
     logger.warn({ err: err?.message }, "Failed token exchange");
@@ -150,10 +180,25 @@ router.delete("/api/mcp/tokens/:id", async (req: Request, res: Response): Promis
 // CORE MCP STREAMABLE HTTP & JSON-RPC PROTOCOL HANDLER
 // -----------------------------------------------------------------------------
 async function handleMcpRequest(req: Request, res: Response): Promise<void> {
+  const baseUrl = getBaseUrl(req);
+
+  // Handle CORS preflight explicitly if reached
+  if (req.method === "OPTIONS") {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS, HEAD");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, Mcp-Session-Id");
+    res.setHeader("Access-Control-Expose-Headers", "Mcp-Session-Id, WWW-Authenticate");
+    res.status(204).end();
+    return;
+  }
+
   const userCtx = await resolveUserFromAuthHeader(req);
 
   if (!userCtx) {
-    res.setHeader("WWW-Authenticate", 'Bearer realm="LifeOS MCP"');
+    res.setHeader(
+      "WWW-Authenticate",
+      `Bearer realm="LifeOS MCP", resource_metadata="${baseUrl}/.well-known/oauth-protected-resource"`
+    );
     res.status(401).json({
       jsonrpc: "2.0",
       error: {
@@ -164,6 +209,10 @@ async function handleMcpRequest(req: Request, res: Response): Promise<void> {
     });
     return;
   }
+
+  // Preserve or establish MCP session ID
+  const sessionId = req.headers["mcp-session-id"] || randomUUID();
+  res.setHeader("Mcp-Session-Id", sessionId as string);
 
   // Execute inside authenticated context
   await runWithAuth(userCtx, async () => {
@@ -183,6 +232,7 @@ async function handleMcpRequest(req: Request, res: Response): Promise<void> {
         authenticatedUser: {
           userId: userCtx.userId,
           timezone: userCtx.timezone,
+          authMethod: userCtx.authMethod,
         },
       });
       return;

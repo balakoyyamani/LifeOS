@@ -107,10 +107,41 @@ export async function createAuthorizationCode(data: {
   return created.code;
 }
 
+export async function generateOAuthToken(
+  userId: number,
+  clientId: string,
+  scope = "all",
+  expiresInDays = 30,
+) {
+  const rawBytes = randomBytes(24).toString("hex");
+  const rawToken = `los_oauth_${rawBytes}`;
+  const tokenHash = hashToken(rawToken);
+  const tokenPrefix = `los_oauth_${rawBytes.slice(0, 6)}...`;
+  const expiresAt = new Date(Date.now() + expiresInDays * 24 * 60 * 60 * 1000);
+
+  const [tokenRecord] = await db
+    .insert(mcpTokensTable)
+    .values({
+      userId,
+      name: `OAuth Client (${clientId || "ChatGPT"})`,
+      tokenHash,
+      tokenPrefix,
+      scopes: scope,
+      expiresAt,
+    })
+    .returning();
+
+  return {
+    id: tokenRecord.id,
+    rawToken,
+    expiresAt: tokenRecord.expiresAt?.toISOString(),
+  };
+}
+
 export async function exchangeAuthorizationCode(data: {
   code: string;
-  clientId: string;
-  redirectUri: string;
+  clientId?: string;
+  redirectUri?: string;
   codeVerifier: string;
 }) {
   const now = new Date();
@@ -126,11 +157,11 @@ export async function exchangeAuthorizationCode(data: {
     throw new Error("Invalid or expired authorization code.");
   }
 
-  // 2. Validate redirect_uri and client_id
-  if (record.redirectUri !== data.redirectUri) {
+  // 2. Validate redirect_uri and client_id if provided
+  if (data.redirectUri && record.redirectUri !== data.redirectUri) {
     throw new Error("redirect_uri mismatch.");
   }
-  if (record.clientId !== data.clientId) {
+  if (data.clientId && record.clientId && record.clientId !== data.clientId) {
     throw new Error("client_id mismatch.");
   }
 
@@ -143,13 +174,13 @@ export async function exchangeAuthorizationCode(data: {
   // 4. One-time code use: delete the authorization code
   await db.delete(mcpOauthCodesTable).where(eq(mcpOauthCodesTable.id, record.id));
 
-  // 5. Generate Access Token
-  const token = await generateMcpToken(record.userId, `ChatGPT OAuth (${record.clientId})`, 365);
+  // 5. Generate dedicated OAuth Access Token
+  const token = await generateOAuthToken(record.userId, record.clientId, "all", 30);
 
   return {
     access_token: token.rawToken,
     token_type: "Bearer",
-    expires_in: 365 * 24 * 60 * 60,
+    expires_in: 30 * 24 * 60 * 60,
     scope: "all",
   };
 }
@@ -165,5 +196,18 @@ export function getOAuthDiscoveryConfig(baseUrl: string) {
     grant_types_supported: ["authorization_code", "refresh_token"],
     code_challenge_methods_supported: ["S256"],
     scopes_supported: ["mcp", "read", "write", "all"],
+    service_documentation: `${normalizedBase}/docs/mcp`,
+    ui_locales_supported: ["en"],
+  };
+}
+
+export function getOAuthProtectedResourceConfig(baseUrl: string) {
+  const normalizedBase = baseUrl.replace(/\/$/, "");
+  return {
+    resource: `${normalizedBase}/mcp`,
+    authorization_servers: [normalizedBase],
+    scopes_supported: ["mcp", "read", "write", "all"],
+    bearer_methods_supported: ["header"],
+    resource_documentation: `${normalizedBase}/docs/mcp`,
   };
 }

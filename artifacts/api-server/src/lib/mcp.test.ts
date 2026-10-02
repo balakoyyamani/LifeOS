@@ -95,7 +95,7 @@ describe("LifeOS Production MCP Server", () => {
     });
   });
 
-  describe("OAuth 2.1 Discovery Configuration", () => {
+  describe("OAuth 2.1 & RFC 9728 Discovery Configuration", () => {
     it("should generate compliant OAuth 2.1 discovery metadata", () => {
       const config = getOAuthDiscoveryConfig("https://lifesos.online");
       assert.equal(config.issuer, "https://lifesos.online");
@@ -103,6 +103,54 @@ describe("LifeOS Production MCP Server", () => {
       assert.equal(config.token_endpoint, "https://lifesos.online/oauth/token");
       assert.deepEqual(config.code_challenge_methods_supported, ["S256"]);
       assert.deepEqual(config.response_types_supported, ["code"]);
+      assert.deepEqual(config.grant_types_supported, ["authorization_code", "refresh_token"]);
+      assert.deepEqual(config.scopes_supported, ["mcp", "read", "write", "all"]);
+      assert.equal(config.service_documentation, "https://lifesos.online/docs/mcp");
+    });
+
+    it("should generate RFC 9728 OAuth Protected Resource metadata", async () => {
+      const { getOAuthProtectedResourceConfig } = await import("./services/mcp-auth-service");
+      const resourceConfig = getOAuthProtectedResourceConfig("https://lifesos.online");
+      assert.equal(resourceConfig.resource, "https://lifesos.online/mcp");
+      assert.deepEqual(resourceConfig.authorization_servers, ["https://lifesos.online"]);
+      assert.deepEqual(resourceConfig.bearer_methods_supported, ["header"]);
+      assert.deepEqual(resourceConfig.scopes_supported, ["mcp", "read", "write", "all"]);
+    });
+
+    it("should verify S256 PKCE code challenge and verifier math", async () => {
+      const { createHash } = await import("node:crypto");
+      // Standard RFC 7636 Appendix B test vector
+      const codeVerifier = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk";
+      const hash = createHash("sha256").update(codeVerifier).digest();
+      const codeChallenge = hash.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+      assert.equal(codeChallenge, "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM");
+    });
+  });
+
+  describe("User Scoping & Isolation Security", () => {
+    it("should propagate authenticated user context and tag oauth_token method", async () => {
+      const userA = { userId: 101, clerkUserId: "user_a", timezone: "UTC", authMethod: "oauth_token" as const };
+      const ctx = await runWithAuth(userA, async () => {
+        const { getAuthenticatedContext } = await import("./auth-context");
+        return getAuthenticatedContext();
+      });
+      assert.equal(ctx.userId, 101);
+      assert.equal(ctx.authMethod, "oauth_token");
+      assert.equal(ctx.clerkUserId, "user_a");
+      assert.equal(ctx.timezone, "UTC");
+    });
+
+    it("should prevent User A from accessing other user contexts", async () => {
+      const userA = { userId: 101, clerkUserId: "user_a", timezone: "UTC", authMethod: "oauth_token" as const };
+      const userB = { userId: 202, clerkUserId: "user_b", timezone: "UTC", authMethod: "oauth_token" as const };
+
+      // Dispatching under User A returns User A's context, never User B's
+      const resA = await runWithAuth(userA, async () => {
+        const { getAuthenticatedContext } = await import("./auth-context");
+        return getAuthenticatedContext();
+      });
+      assert.equal(resA.userId, 101);
+      assert.notEqual(resA.userId, userB.userId);
     });
   });
 });

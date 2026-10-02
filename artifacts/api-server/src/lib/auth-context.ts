@@ -1,6 +1,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { createHash } from "node:crypto";
 import type { Request } from "express";
+import { getAuth } from "@clerk/express";
 import { and, eq, gt, or, isNull } from "drizzle-orm";
 import { db, mcpTokensTable, usersTable, profilesTable } from "@workspace/db";
 import { getOrCreateUser } from "./lifeos";
@@ -10,7 +11,7 @@ export interface AuthenticatedUserContext {
   userId: number; // Integer ID in LifeOS users table
   clerkUserId: string; // Clerk user ID (e.g. user_2...)
   timezone: string;
-  authMethod: "clerk_session" | "mcp_token" | "clerk_jwt";
+  authMethod: "clerk_session" | "mcp_token" | "oauth_token" | "clerk_jwt";
 }
 
 const asyncLocalStorage = new AsyncLocalStorage<AuthenticatedUserContext>();
@@ -34,12 +35,22 @@ function hashToken(rawToken: string): string {
 }
 
 export async function resolveUserFromAuthHeader(req: Request): Promise<AuthenticatedUserContext | null> {
-  // 1. Check if Clerk Express middleware already resolved req.userId (from session or Clerk bearer token)
-  if (req.userId) {
-    const user = await getOrCreateUser(req.userId);
+  // 1. Check if Clerk Express middleware resolved auth (from session cookie or Clerk bearer token)
+  let clerkUserId: string | null | undefined = req.userId;
+  try {
+    const auth = getAuth(req);
+    if (auth && auth.userId) {
+      clerkUserId = auth.userId;
+    }
+  } catch {
+    // Ignore if clerkMiddleware was not run or has no auth
+  }
+
+  if (clerkUserId) {
+    const user = await getOrCreateUser(clerkUserId);
     return {
       userId: user.id,
-      clerkUserId: req.userId,
+      clerkUserId,
       timezone: user.timezone || "Asia/Calcutta",
       authMethod: "clerk_session",
     };
@@ -54,8 +65,8 @@ export async function resolveUserFromAuthHeader(req: Request): Promise<Authentic
   const rawToken = authHeader.slice(7).trim();
   if (!rawToken) return null;
 
-  // 2a. Check if it's a LifeOS MCP token (starts with los_mcp_)
-  if (rawToken.startsWith("los_mcp_")) {
+  // 2a. Check if it's an OAuth token or LifeOS MCP token
+  if (rawToken.startsWith("los_oauth_") || rawToken.startsWith("los_mcp_")) {
     const hashed = hashToken(rawToken);
     const now = new Date();
 
@@ -90,7 +101,7 @@ export async function resolveUserFromAuthHeader(req: Request): Promise<Authentic
         userId: tokenRecord.userId,
         clerkUserId: tokenRecord.clerkUserId,
         timezone: tokenRecord.timezone || "Asia/Calcutta",
-        authMethod: "mcp_token",
+        authMethod: rawToken.startsWith("los_oauth_") ? "oauth_token" : "mcp_token",
       };
     }
 

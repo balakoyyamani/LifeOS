@@ -3,6 +3,7 @@ import fs from "fs";
 import express, { type Express } from "express";
 import cors from "cors";
 import helmet from "helmet";
+import cookieParser from "cookie-parser";
 import rateLimit from "express-rate-limit";
 import pinoHttp from "pino-http";
 import { clerkMiddleware } from "@clerk/express";
@@ -67,8 +68,25 @@ const rawAllowedOrigins = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(",").map((o) => o.trim()).filter(Boolean)
   : [];
 
-const isOriginAllowed = (origin: string | undefined, hostHeader?: string, forwardedHost?: string): boolean => {
+const isOriginAllowed = (
+  origin: string | undefined,
+  hostHeader?: string,
+  forwardedHost?: string,
+  pathname?: string,
+): boolean => {
   if (!origin) return true;
+
+  // Always permit public MCP, OAuth, and discovery endpoints from any client origin (ChatGPT, Claude, etc.)
+  if (
+    pathname &&
+    (pathname.startsWith("/mcp") ||
+      pathname.startsWith("/api/mcp") ||
+      pathname.startsWith("/oauth") ||
+      pathname.startsWith("/.well-known"))
+  ) {
+    return true;
+  }
+
   if (process.env.NODE_ENV !== "production") return true;
 
   try {
@@ -92,16 +110,25 @@ const isOriginAllowed = (origin: string | undefined, hostHeader?: string, forwar
   return false;
 };
 
-// Apply CORS with dynamic host inspection (never throw unhandled 500 error)
+// Apply CORS with dynamic host and path inspection
 app.use((req, res, next) => {
   const origin = req.headers.origin;
   const host = req.headers.host;
   const forwardedHost = req.headers["x-forwarded-host"] as string | undefined;
 
-  if (isOriginAllowed(origin, host, forwardedHost)) {
+  if (isOriginAllowed(origin, host, forwardedHost, req.path)) {
     cors({
       credentials: true,
       origin: origin || true,
+      methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"],
+      allowedHeaders: [
+        "Content-Type",
+        "Authorization",
+        "X-Requested-With",
+        "Mcp-Session-Id",
+        "Accept",
+      ],
+      exposedHeaders: ["Mcp-Session-Id", "WWW-Authenticate"],
     })(req, res, next);
   } else {
     next();
@@ -110,6 +137,7 @@ app.use((req, res, next) => {
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
 
 const apiLimiter = rateLimit({
   windowMs: 60 * 1000,
