@@ -5,11 +5,16 @@ import {
   Bot,
   CalendarRange,
   Check,
+  CheckCircle2,
   ChevronRight,
   Clock3,
+  Code2,
   Copy,
   Cpu,
+  ExternalLink,
+  Globe,
   Key,
+  Layers,
   Moon,
   Palette,
   Radio,
@@ -18,9 +23,12 @@ import {
   Smartphone,
   Sparkles,
   Sun,
+  Terminal,
   Trash2,
   UserRound,
   Volume2,
+  Wand2,
+  Zap,
 } from 'lucide-react';
 import { useClerk, useUser } from '@clerk/react';
 import { useHealthCheck } from '@workspace/api-client-react';
@@ -524,9 +532,17 @@ function McpSettingsSection() {
   const [newToken, setNewToken] = useState<string | null>(null);
   const [copiedEndpoint, setCopiedEndpoint] = useState(false);
   const [copiedToken, setCopiedToken] = useState(false);
-  const [tokenName, setTokenName] = useState('ChatGPT Assistant');
+  const [copiedSnippet, setCopiedSnippet] = useState<string | null>(null);
+  const [tokenName, setTokenName] = useState('My AI Assistant');
+  const [activeTab, setActiveTab] = useState<'chatgpt' | 'gemini' | 'claude' | 'cursor' | 'universal' | 'prompts'>('chatgpt');
 
   const mcpEndpoint = typeof window !== 'undefined' ? `${window.location.origin}/mcp` : 'https://lifesos.online/mcp';
+  const oauthAuthUrl = typeof window !== 'undefined' ? `${window.location.origin}/oauth/authorize` : 'https://lifesos.online/oauth/authorize';
+  const oauthTokenUrl = typeof window !== 'undefined' ? `${window.location.origin}/oauth/token` : 'https://lifesos.online/oauth/token';
+  const discoveryUrl = typeof window !== 'undefined' ? `${window.location.origin}/.well-known/oauth-authorization-server` : 'https://lifesos.online/.well-known/oauth-authorization-server';
+
+  // Effective token to display in config snippets
+  const activeTokenPlaceholder = newToken || (tokens[0] ? `${tokens[0].tokenPrefix.replace('...', '')}_xxxxxxxxxxxxxxxx` : 'YOUR_LIFEOS_TOKEN');
 
   const fetchTokens = async () => {
     try {
@@ -554,7 +570,7 @@ function McpSettingsSection() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ name: tokenName || 'ChatGPT Assistant' }),
+        body: JSON.stringify({ name: tokenName || 'AI Assistant' }),
       });
       if (res.ok) {
         const data = await res.json();
@@ -588,62 +604,572 @@ function McpSettingsSection() {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const copySnippet = (id: string, text: string) => {
+    void navigator.clipboard.writeText(text);
+    setCopiedSnippet(id);
+    setTimeout(() => setCopiedSnippet(null), 2000);
+  };
+
+  const claudeConfigJson = JSON.stringify(
+    {
+      mcpServers: {
+        lifeos: {
+          url: mcpEndpoint,
+          headers: {
+            Authorization: `Bearer ${activeTokenPlaceholder}`,
+          },
+        },
+      },
+    },
+    null,
+    2,
+  );
+
+  const cursorConfigJson = JSON.stringify(
+    {
+      mcpServers: {
+        lifeos: {
+          url: mcpEndpoint,
+          headers: {
+            Authorization: `Bearer ${activeTokenPlaceholder}`,
+          },
+        },
+      },
+    },
+    null,
+    2,
+  );
+
+  const curlListCommand = `curl -X POST ${mcpEndpoint} \\
+  -H "Content-Type: application/json" \\
+  -H "Authorization: Bearer ${activeTokenPlaceholder}" \\
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'`;
+
+  const curlTodayCommand = `curl -X POST ${mcpEndpoint} \\
+  -H "Content-Type: application/json" \\
+  -H "Authorization: Bearer ${activeTokenPlaceholder}" \\
+  -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"get_today","arguments":{}}}'`;
+
+  const samplePrompts = [
+    {
+      id: 'today',
+      category: 'Daily Overview',
+      prompt: 'Show my day on LifeOS and give me a quick morning briefing.',
+    },
+    {
+      id: 'timer',
+      category: 'Focus Timer',
+      prompt: 'Start a 90-minute focus timer on LifeOS for Deep Work.',
+    },
+    {
+      id: 'pause',
+      category: 'Focus Timer',
+      prompt: 'Pause my active LifeOS timer.',
+    },
+    {
+      id: 'schedule',
+      category: 'Schedules',
+      prompt: 'Schedule Gym workout every Monday, Wednesday, and Friday at 7 AM for 60 minutes.',
+    },
+    {
+      id: 'goal',
+      category: 'Goals',
+      prompt: 'Create a new LifeOS goal titled "Master TypeScript" with target 20 chapters.',
+    },
+    {
+      id: 'progress',
+      category: 'Analytics',
+      prompt: 'How much focus time and completed goals did I accumulate this week on LifeOS?',
+    },
+    {
+      id: 'career',
+      category: 'Career Track',
+      prompt: 'Log a new job application for Senior Full Stack Engineer at Stripe with status applied.',
+    },
+    {
+      id: 'task',
+      category: 'Tasks',
+      prompt: 'Add a high priority task "Review system design draft" due tomorrow.',
+    },
+  ];
+
   return (
-    <section className="rounded-2xl border border-border bg-card p-5 sm:p-6 shadow-sm space-y-5">
-      <div className="flex items-center justify-between">
+    <section className="rounded-2xl border border-border bg-card p-5 sm:p-6 shadow-sm space-y-6">
+      {/* Section Header */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
-          <div className="grid size-9 place-items-center rounded-xl bg-accent/20 text-accent">
-            <Bot className="size-4" />
+          <div className="grid size-10 place-items-center rounded-xl bg-accent/20 text-accent shadow-xs">
+            <Bot className="size-5" />
           </div>
           <div>
-            <h2 className="font-extrabold text-sidebar">Model Context Protocol (MCP)</h2>
-            <p className="text-xs text-muted-foreground">
-              Connect ChatGPT, Claude, or Cursor to securely interact with your LifeOS account.
+            <div className="flex items-center gap-2">
+              <h2 className="font-extrabold text-sidebar text-base sm:text-lg">Connect AI Assistants</h2>
+              <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">
+                MCP & OAuth 2.1
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Interact with LifeOS hands-free using ChatGPT, Gemini, Claude, Cursor, or custom agents.
             </p>
           </div>
         </div>
-        <span className="rounded-full bg-emerald-500/15 px-2.5 py-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
-          Streamable HTTP Active
-        </span>
+        <div className="flex items-center gap-1.5 self-start sm:self-auto">
+          <span className="flex size-2 rounded-full bg-emerald-500 animate-pulse" />
+          <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
+            42 Tools Live
+          </span>
+        </div>
       </div>
 
-      {/* Endpoint URL Card */}
+      {/* Production Endpoint Card */}
       <div className="rounded-xl border border-border/80 bg-muted/30 p-4 space-y-2.5">
         <div className="flex items-center justify-between">
-          <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-            Production MCP Endpoint
+          <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+            <Globe className="size-3.5 text-accent" />
+            Universal MCP Streamable HTTP Endpoint
           </span>
-          <span className="text-[11px] font-semibold text-primary">
-            42 Tools Supported
-          </span>
+          <span className="text-[10px] font-mono text-muted-foreground">JSON-RPC 2.0 / SSE</span>
         </div>
         <div className="flex items-center gap-2">
           <input
             type="text"
             readOnly
             value={mcpEndpoint}
-            className="flex-1 rounded-lg border border-input bg-background px-3 py-1.5 text-xs font-mono font-medium text-foreground select-all"
+            className="flex-1 rounded-lg border border-input bg-background px-3 py-1.5 text-xs font-mono font-semibold text-foreground select-all shadow-xs"
           />
           <button
             type="button"
             onClick={() => copyToClipboard(mcpEndpoint, setCopiedEndpoint)}
-            className="focus-ring inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-bold text-sidebar hover:bg-muted active:scale-95 transition-all"
+            className="focus-ring inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3.5 py-1.5 text-xs font-bold text-sidebar hover:bg-muted active:scale-95 transition-all shadow-xs"
           >
             {copiedEndpoint ? <Check className="size-3.5 text-emerald-500" /> : <Copy className="size-3.5" />}
-            <span>{copiedEndpoint ? 'Copied' : 'Copy URL'}</span>
+            <span>{copiedEndpoint ? 'Copied' : 'Copy Endpoint'}</span>
           </button>
         </div>
-        <p className="text-[11px] text-muted-foreground">
-          Supports both Streamable HTTP transport and OAuth 2.1 / PKCE auto-discovery.
-        </p>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
+          <span>• Transport: <strong className="text-sidebar">Streamable HTTP / SSE</strong></span>
+          <span>• Protocol: <strong className="text-sidebar">2024-11-05</strong></span>
+          <span>• RFC 8414 Discovery: <strong className="text-sidebar">Active</strong></span>
+        </div>
+      </div>
+
+      {/* Interactive Platform Navigation Tabs */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-bold uppercase tracking-wider text-sidebar flex items-center gap-1.5">
+            <Layers className="size-3.5 text-accent" />
+            Step-by-Step Connection Guides
+          </span>
+          <span className="text-[11px] text-muted-foreground">Choose your AI platform:</span>
+        </div>
+
+        {/* Tab buttons */}
+        <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 rounded-xl bg-muted/60 p-1 border border-border/60">
+          <button
+            type="button"
+            onClick={() => setActiveTab('chatgpt')}
+            className={cn(
+              'flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg text-xs font-bold transition-all',
+              activeTab === 'chatgpt'
+                ? 'bg-card text-sidebar shadow-xs border border-border/80'
+                : 'text-muted-foreground hover:text-foreground hover:bg-card/50',
+            )}
+          >
+            <Bot className="size-3.5 text-emerald-600" />
+            <span>ChatGPT</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('gemini')}
+            className={cn(
+              'flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg text-xs font-bold transition-all',
+              activeTab === 'gemini'
+                ? 'bg-card text-sidebar shadow-xs border border-border/80'
+                : 'text-muted-foreground hover:text-foreground hover:bg-card/50',
+            )}
+          >
+            <Sparkles className="size-3.5 text-blue-500" />
+            <span>Gemini</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('claude')}
+            className={cn(
+              'flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg text-xs font-bold transition-all',
+              activeTab === 'claude'
+                ? 'bg-card text-sidebar shadow-xs border border-border/80'
+                : 'text-muted-foreground hover:text-foreground hover:bg-card/50',
+            )}
+          >
+            <Cpu className="size-3.5 text-amber-600" />
+            <span>Claude</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('cursor')}
+            className={cn(
+              'flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg text-xs font-bold transition-all',
+              activeTab === 'cursor'
+                ? 'bg-card text-sidebar shadow-xs border border-border/80'
+                : 'text-muted-foreground hover:text-foreground hover:bg-card/50',
+            )}
+          >
+            <Zap className="size-3.5 text-cyan-600" />
+            <span>Cursor</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('universal')}
+            className={cn(
+              'flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg text-xs font-bold transition-all',
+              activeTab === 'universal'
+                ? 'bg-card text-sidebar shadow-xs border border-border/80'
+                : 'text-muted-foreground hover:text-foreground hover:bg-card/50',
+            )}
+          >
+            <Terminal className="size-3.5 text-purple-600" />
+            <span>cURL / API</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('prompts')}
+            className={cn(
+              'flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg text-xs font-bold transition-all',
+              activeTab === 'prompts'
+                ? 'bg-card text-sidebar shadow-xs border border-border/80'
+                : 'text-muted-foreground hover:text-foreground hover:bg-card/50',
+            )}
+          >
+            <Wand2 className="size-3.5 text-accent" />
+            <span>Prompts</span>
+          </button>
+        </div>
+
+        {/* Tab Content Panels */}
+        <div className="rounded-xl border border-border/80 bg-card p-4 sm:p-5 shadow-xs transition-all">
+          {/* 1. CHATGPT TAB */}
+          {activeTab === 'chatgpt' && (
+            <div className="space-y-4 animate-fade-in">
+              <div className="flex items-center justify-between border-b border-border/60 pb-3">
+                <div className="flex items-center gap-2">
+                  <div className="grid size-7 place-items-center rounded-lg bg-emerald-500/15 text-emerald-600">
+                    <Bot className="size-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-sidebar">Connect to ChatGPT (OpenAI)</h3>
+                    <p className="text-[11px] text-muted-foreground">Use in Custom GPTs, Actions, or ChatGPT Desktop with MCP.</p>
+                  </div>
+                </div>
+                <span className="rounded-md bg-muted px-2 py-0.5 text-[10px] font-mono text-muted-foreground">OAuth 2.1 or Bearer</span>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                {/* Method 1: Bearer Token */}
+                <div className="rounded-lg border border-border/80 bg-muted/20 p-3.5 space-y-2.5">
+                  <div className="flex items-center gap-1.5">
+                    <span className="grid size-5 place-items-center rounded-full bg-emerald-600 text-[10px] font-bold text-white">1</span>
+                    <span className="text-xs font-bold text-sidebar">Method A: Instant Bearer Token (Recommended)</span>
+                  </div>
+                  <ol className="list-decimal list-inside text-xs text-muted-foreground space-y-1.5 leading-relaxed">
+                    <li>In ChatGPT, open <strong>Explore GPTs</strong> → <strong>Create</strong> → <strong>Configure</strong>.</li>
+                    <li>Add an Action or MCP Connector pointing to: <code className="rounded bg-muted px-1 font-mono text-[11px] text-foreground select-all">{mcpEndpoint}</code></li>
+                    <li>Set Authentication Type to: <strong>Bearer / API Key</strong>.</li>
+                    <li>Paste your LifeOS Token generated in the panel below.</li>
+                  </ol>
+                </div>
+
+                {/* Method 2: OAuth 2.1 PKCE */}
+                <div className="rounded-lg border border-border/80 bg-muted/20 p-3.5 space-y-2.5">
+                  <div className="flex items-center gap-1.5">
+                    <span className="grid size-5 place-items-center rounded-full bg-primary text-[10px] font-bold text-white">2</span>
+                    <span className="text-xs font-bold text-sidebar">Method B: OAuth 2.1 with PKCE</span>
+                  </div>
+                  <div className="text-xs text-muted-foreground space-y-1.5">
+                    <p>ChatGPT auto-discovers endpoints from LifeOS or use manual OAuth:</p>
+                    <div className="space-y-1 text-[11px] font-mono">
+                      <div><strong className="text-muted-foreground font-sans">Auth URL:</strong> <span className="text-foreground select-all">{oauthAuthUrl}</span></div>
+                      <div><strong className="text-muted-foreground font-sans">Token URL:</strong> <span className="text-foreground select-all">{oauthTokenUrl}</span></div>
+                      <div><strong className="text-muted-foreground font-sans">Scope:</strong> <code className="text-accent">all</code></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-3 py-2 text-xs text-emerald-800 dark:text-emerald-300">
+                <span className="flex items-center gap-1.5">
+                  <CheckCircle2 className="size-4 shrink-0 text-emerald-600" />
+                  <span>Ready! Ask ChatGPT: <em>"Show my LifeOS daily dashboard."</em></span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => copySnippet('prompt_gpt', 'Show my day on LifeOS and summarize my progress.')}
+                  className="font-bold underline hover:opacity-80"
+                >
+                  {copiedSnippet === 'prompt_gpt' ? 'Copied!' : 'Copy Test Prompt'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* 2. GEMINI & SPARK TAB */}
+          {activeTab === 'gemini' && (
+            <div className="space-y-4 animate-fade-in">
+              <div className="flex items-center justify-between border-b border-border/60 pb-3">
+                <div className="flex items-center gap-2">
+                  <div className="grid size-7 place-items-center rounded-lg bg-blue-500/15 text-blue-500">
+                    <Sparkles className="size-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-sidebar">Connect to Google Gemini & Spark</h3>
+                    <p className="text-[11px] text-muted-foreground">Use in Google AI Studio, Gemini Custom Gems, or Vertex AI Agents.</p>
+                  </div>
+                </div>
+                <span className="rounded-md bg-muted px-2 py-0.5 text-[10px] font-mono text-muted-foreground">Function Calling / HTTP</span>
+              </div>
+
+              <div className="space-y-3 text-xs text-muted-foreground">
+                <p>
+                  Google Gemini models support external tool execution via Streamable HTTP and function-calling schemas.
+                </p>
+
+                <div className="rounded-lg border border-border/80 bg-muted/20 p-3.5 space-y-2">
+                  <span className="text-xs font-bold text-sidebar">Quick Setup Steps:</span>
+                  <ol className="list-decimal list-inside space-y-1.5 leading-relaxed">
+                    <li>Open <strong>Google AI Studio</strong> or your <strong>Gemini Agent Builder</strong>.</li>
+                    <li>Add a Webhook / API Tool targeting: <code className="rounded bg-muted px-1 font-mono text-[11px] text-foreground select-all">{mcpEndpoint}</code></li>
+                    <li>Set Authorization header: <code className="rounded bg-muted px-1 font-mono text-[11px] text-foreground">Bearer {activeTokenPlaceholder}</code></li>
+                    <li>Gemini will dynamically call <code className="font-mono text-accent">get_today</code>, <code className="font-mono text-accent">start_timer</code>, and <code className="font-mono text-accent">create_schedule</code>.</li>
+                  </ol>
+                </div>
+
+                <div className="flex items-center justify-between rounded-lg bg-muted/40 p-2.5 border border-border/60 text-[11px]">
+                  <span className="font-mono text-muted-foreground truncate">Discovery URL: {discoveryUrl}</span>
+                  <button
+                    type="button"
+                    onClick={() => copySnippet('gemini_disc', discoveryUrl)}
+                    className="font-bold text-sidebar hover:text-accent ml-2 shrink-0"
+                  >
+                    {copiedSnippet === 'gemini_disc' ? 'Copied' : 'Copy'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 3. CLAUDE DESKTOP TAB */}
+          {activeTab === 'claude' && (
+            <div className="space-y-4 animate-fade-in">
+              <div className="flex items-center justify-between border-b border-border/60 pb-3">
+                <div className="flex items-center gap-2">
+                  <div className="grid size-7 place-items-center rounded-lg bg-amber-500/15 text-amber-600">
+                    <Cpu className="size-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-sidebar">Connect to Claude Desktop</h3>
+                    <p className="text-[11px] text-muted-foreground">Seamless native desktop assistant with tool calling.</p>
+                  </div>
+                </div>
+                <span className="rounded-md bg-muted px-2 py-0.5 text-[10px] font-mono text-muted-foreground">claude_desktop_config.json</span>
+              </div>
+
+              <div className="space-y-3">
+                <div className="text-xs text-muted-foreground space-y-1">
+                  <p>1. Open your Claude Desktop configuration file:</p>
+                  <div className="flex flex-col sm:flex-row gap-2 font-mono text-[11px]">
+                    <div className="rounded bg-muted/50 px-2 py-1 flex-1 truncate">
+                      <strong className="font-sans text-muted-foreground">macOS:</strong> ~/Library/Application Support/Claude/claude_desktop_config.json
+                    </div>
+                    <div className="rounded bg-muted/50 px-2 py-1 flex-1 truncate">
+                      <strong className="font-sans text-muted-foreground">Windows:</strong> %APPDATA%\Claude\claude_desktop_config.json
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground">2. Add the LifeOS MCP configuration:</span>
+                    <button
+                      type="button"
+                      onClick={() => copySnippet('claude_cfg', claudeConfigJson)}
+                      className="focus-ring inline-flex items-center gap-1 font-bold text-accent hover:opacity-80"
+                    >
+                      {copiedSnippet === 'claude_cfg' ? <Check className="size-3 text-emerald-500" /> : <Copy className="size-3" />}
+                      <span>{copiedSnippet === 'claude_cfg' ? 'Copied Config!' : 'Copy Config JSON'}</span>
+                    </button>
+                  </div>
+                  <pre className="rounded-lg border border-border bg-muted/40 p-3 text-xs font-mono text-foreground overflow-x-auto select-all">
+                    {claudeConfigJson}
+                  </pre>
+                </div>
+
+                <p className="text-xs text-muted-foreground">
+                  3. Restart Claude Desktop. The hammer 🔨 icon will illuminate with all 42 LifeOS tools!
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* 4. CURSOR & WINDSURF TAB */}
+          {activeTab === 'cursor' && (
+            <div className="space-y-4 animate-fade-in">
+              <div className="flex items-center justify-between border-b border-border/60 pb-3">
+                <div className="flex items-center gap-2">
+                  <div className="grid size-7 place-items-center rounded-lg bg-cyan-500/15 text-cyan-600">
+                    <Zap className="size-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-sidebar">Connect to Cursor, Windsurf & VS Code</h3>
+                    <p className="text-[11px] text-muted-foreground">Directly access your schedule, timers, and goals while coding.</p>
+                  </div>
+                </div>
+                <span className="rounded-md bg-muted px-2 py-0.5 text-[10px] font-mono text-muted-foreground">.cursor/mcp.json</span>
+              </div>
+
+              <div className="space-y-3">
+                <div className="text-xs text-muted-foreground space-y-1">
+                  <p>1. In your project root, create or edit <code className="rounded bg-muted px-1 font-mono text-[11px] text-foreground">.cursor/mcp.json</code> (or in Cursor Settings → Features → MCP):</p>
+                </div>
+
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground">Configuration snippet:</span>
+                    <button
+                      type="button"
+                      onClick={() => copySnippet('cursor_cfg', cursorConfigJson)}
+                      className="focus-ring inline-flex items-center gap-1 font-bold text-accent hover:opacity-80"
+                    >
+                      {copiedSnippet === 'cursor_cfg' ? <Check className="size-3 text-emerald-500" /> : <Copy className="size-3" />}
+                      <span>{copiedSnippet === 'cursor_cfg' ? 'Copied Config!' : 'Copy Cursor Config'}</span>
+                    </button>
+                  </div>
+                  <pre className="rounded-lg border border-border bg-muted/40 p-3 text-xs font-mono text-foreground overflow-x-auto select-all">
+                    {cursorConfigJson}
+                  </pre>
+                </div>
+
+                <div className="rounded-lg bg-muted/30 p-2.5 text-xs text-muted-foreground border border-border/50">
+                  💡 <strong>Pro Tip:</strong> Tell Cursor Composer: <em>"Start a 60-minute focus timer on LifeOS for refactoring this service."</em>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 5. UNIVERSAL & CURL TAB */}
+          {activeTab === 'universal' && (
+            <div className="space-y-4 animate-fade-in">
+              <div className="flex items-center justify-between border-b border-border/60 pb-3">
+                <div className="flex items-center gap-2">
+                  <div className="grid size-7 place-items-center rounded-lg bg-purple-500/15 text-purple-600">
+                    <Terminal className="size-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-sidebar">Universal cURL, Python & Agent SDK</h3>
+                    <p className="text-[11px] text-muted-foreground">Standard JSON-RPC 2.0 commands ready to paste in terminal or scripts.</p>
+                  </div>
+                </div>
+                <span className="rounded-md bg-muted px-2 py-0.5 text-[10px] font-mono text-muted-foreground">POST /mcp</span>
+              </div>
+
+              <div className="space-y-3">
+                {/* List Tools cURL */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-semibold text-sidebar">List Available Tools:</span>
+                    <button
+                      type="button"
+                      onClick={() => copySnippet('curl_list', curlListCommand)}
+                      className="font-bold text-accent hover:opacity-80 flex items-center gap-1"
+                    >
+                      {copiedSnippet === 'curl_list' ? <Check className="size-3 text-emerald-500" /> : <Copy className="size-3" />}
+                      <span>Copy cURL</span>
+                    </button>
+                  </div>
+                  <pre className="rounded-lg border border-border bg-muted/40 p-2.5 text-[11px] font-mono text-foreground overflow-x-auto select-all">
+                    {curlListCommand}
+                  </pre>
+                </div>
+
+                {/* Call get_today cURL */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-semibold text-sidebar">Execute get_today Tool:</span>
+                    <button
+                      type="button"
+                      onClick={() => copySnippet('curl_today', curlTodayCommand)}
+                      className="font-bold text-accent hover:opacity-80 flex items-center gap-1"
+                    >
+                      {copiedSnippet === 'curl_today' ? <Check className="size-3 text-emerald-500" /> : <Copy className="size-3" />}
+                      <span>Copy cURL</span>
+                    </button>
+                  </div>
+                  <pre className="rounded-lg border border-border bg-muted/40 p-2.5 text-[11px] font-mono text-foreground overflow-x-auto select-all">
+                    {curlTodayCommand}
+                  </pre>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 6. PROMPT LIBRARY TAB */}
+          {activeTab === 'prompts' && (
+            <div className="space-y-4 animate-fade-in">
+              <div className="flex items-center justify-between border-b border-border/60 pb-3">
+                <div className="flex items-center gap-2">
+                  <div className="grid size-7 place-items-center rounded-lg bg-accent/20 text-accent">
+                    <Wand2 className="size-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-sidebar">LifeOS Prompt Command Library</h3>
+                    <p className="text-[11px] text-muted-foreground">Click any prompt to copy it, then paste into ChatGPT, Gemini, or Claude.</p>
+                  </div>
+                </div>
+                <span className="rounded-md bg-muted px-2 py-0.5 text-[10px] font-mono text-muted-foreground">Click to copy</span>
+              </div>
+
+              <div className="grid gap-2 sm:grid-cols-2">
+                {samplePrompts.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => copySnippet(`p_${item.id}`, item.prompt)}
+                    className="flex flex-col items-start gap-1 p-3 rounded-lg border border-border/80 bg-muted/20 hover:bg-muted/60 text-left transition-all group active:scale-[0.99]"
+                  >
+                    <div className="flex items-center justify-between w-full">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                        {item.category}
+                      </span>
+                      <span className="text-[10px] text-accent opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5">
+                        {copiedSnippet === `p_${item.id}` ? (
+                          <>
+                            <Check className="size-3 text-emerald-500" />
+                            <span className="text-emerald-600 font-bold">Copied</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="size-3" />
+                            <span>Copy</span>
+                          </>
+                        )}
+                      </span>
+                    </div>
+                    <p className="text-xs text-foreground font-medium italic">
+                      "{item.prompt}"
+                    </p>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* New Token Banner if generated */}
       {newToken && (
-        <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4 space-y-2 animate-fade-in">
+        <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4 space-y-2 animate-fade-in shadow-xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400">
-              🔑 New MCP Access Token Generated
+            <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400 flex items-center gap-1.5">
+              <Key className="size-3.5" />
+              <span>New LifeOS Access Token Generated</span>
             </span>
             <span className="text-[10px] text-emerald-600 font-semibold">Copy now — won't be shown again</span>
           </div>
@@ -652,12 +1178,12 @@ function McpSettingsSection() {
               type="text"
               readOnly
               value={newToken}
-              className="flex-1 rounded-lg border border-emerald-500/40 bg-background px-3 py-1.5 text-xs font-mono font-bold text-emerald-600 select-all"
+              className="flex-1 rounded-lg border border-emerald-500/40 bg-background px-3 py-1.5 text-xs font-mono font-bold text-emerald-600 select-all shadow-inner"
             />
             <button
               type="button"
               onClick={() => copyToClipboard(newToken, setCopiedToken)}
-              className="focus-ring inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-emerald-700 active:scale-95 transition-all"
+              className="focus-ring inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-emerald-700 active:scale-95 transition-all shadow-xs"
             >
               {copiedToken ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
               <span>{copiedToken ? 'Copied' : 'Copy Token'}</span>
@@ -666,25 +1192,30 @@ function McpSettingsSection() {
         </div>
       )}
 
-      {/* Generate Token Section */}
+      {/* Personal Access Tokens Management */}
       <div className="rounded-xl border border-border/70 p-4 space-y-3">
-        <div className="flex items-center justify-between">
-          <span className="text-xs font-bold text-sidebar uppercase tracking-wider">
-            Personal Access Tokens
-          </span>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <div>
+            <span className="text-xs font-bold text-sidebar uppercase tracking-wider block">
+              Personal Access Tokens
+            </span>
+            <span className="text-[11px] text-muted-foreground">
+              Generate dedicated API keys for each of your AI assistants or workflows.
+            </span>
+          </div>
           <div className="flex items-center gap-2">
             <input
               type="text"
               value={tokenName}
               onChange={(e) => setTokenName(e.target.value)}
-              placeholder="Client Name (e.g. ChatGPT)"
-              className="rounded-lg border border-input bg-background px-2.5 py-1 text-xs text-foreground w-40 sm:w-48"
+              placeholder="Assistant Name (e.g. ChatGPT)"
+              className="rounded-lg border border-input bg-background px-2.5 py-1 text-xs text-foreground w-40 sm:w-48 shadow-xs"
             />
             <button
               type="button"
               disabled={loading}
               onClick={handleGenerate}
-              className="focus-ring inline-flex items-center gap-1.5 rounded-lg bg-sidebar px-3 py-1 text-xs font-bold text-sidebar-foreground hover:opacity-90 active:scale-95 disabled:opacity-50"
+              className="focus-ring inline-flex items-center gap-1.5 rounded-lg bg-sidebar px-3 py-1 text-xs font-bold text-sidebar-foreground hover:opacity-90 active:scale-95 disabled:opacity-50 transition-all shadow-xs shrink-0"
             >
               <Key className="size-3 text-accent" />
               <span>Generate Token</span>
@@ -693,10 +1224,10 @@ function McpSettingsSection() {
         </div>
 
         {/* Existing Tokens List */}
-        <div className="divide-y divide-border/60">
+        <div className="divide-y divide-border/60 pt-1">
           {tokens.length === 0 ? (
             <div className="py-3 text-center text-xs text-muted-foreground">
-              No active MCP tokens yet. Generate one to connect ChatGPT or other AI agents.
+              No active MCP tokens yet. Generate one above to connect ChatGPT, Gemini, or Claude.
             </div>
           ) : (
             tokens.map((tok) => (
