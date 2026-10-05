@@ -10,8 +10,8 @@ const { getOAuthDiscoveryConfig } = await import("./services/mcp-auth-service");
 
 describe("LifeOS Production MCP Server", () => {
   describe("MCP Tool Definitions & Schemas", () => {
-    it("should register all 42 required tools", () => {
-      assert.equal(LIFEOS_MCP_TOOLS.length, 42);
+    it("should register all 44 required tools", () => {
+      assert.equal(LIFEOS_MCP_TOOLS.length, 44);
     });
 
     it("should ensure every tool has a unique name and non-empty description", () => {
@@ -58,6 +58,8 @@ describe("LifeOS Production MCP Server", () => {
         "update_task",
         "complete_task",
         "delete_task",
+        "add_task_note",
+        "get_task_notes",
         "log_activity",
         "get_activities",
         "create_routine",

@@ -83,6 +83,7 @@ import {
   getTodayDateString,
   isNotificationSupported,
   isScheduleDueNow,
+  markScheduleHandledToday,
   requestNotificationPermission,
   saveGoalSchedule,
   sortGoalsByScheduleTime,
@@ -190,15 +191,83 @@ function ProgressAdjustModal({
 }) {
   const style = categoryStyles[goal.category] ?? categoryStyles.career;
   const [val, setVal] = useState<number>(goal.currentValue);
-  const [activeTab, setActiveTab] = useState<'adjust' | 'timer' | 'schedule'>('adjust');
+  const [activeTab, setActiveTab] = useState<'adjust' | 'timer' | 'schedule' | 'notes'>('adjust');
 
   // Schedule and Reminder state
   const existingSchedule = getGoalSchedule(goal.id);
   const [schedTime, setSchedTime] = useState<string>(existingSchedule?.time || '08:00');
   const [schedEnabled, setSchedEnabled] = useState<boolean>(existingSchedule?.enabled ?? false);
+  const [schedFollowUpInterval, setSchedFollowUpInterval] = useState<number>(existingSchedule?.followUpIntervalMinutes ?? 20);
   const [notifPerm, setNotifPerm] = useState(getNotificationPermission());
   const { toast } = useToast();
   const { updateGoalSchedule } = useNotifications();
+
+  // Notes state
+  interface GoalNoteItem {
+    id: number;
+    title: string;
+    description: string;
+    activityDate: string;
+    createdAt: string;
+  }
+  const [notesList, setNotesList] = useState<GoalNoteItem[]>([]);
+  const [newNoteText, setNewNoteText] = useState('');
+  const [loadingNotes, setLoadingNotes] = useState(false);
+  const [savingNote, setSavingNote] = useState(false);
+
+  const fetchNotes = async () => {
+    try {
+      setLoadingNotes(true);
+      const res = await fetch(`/api/goals/${goal.id}/notes`, { credentials: 'include' });
+      if (res.ok) {
+        const data = await res.json();
+        setNotesList(Array.isArray(data) ? data : []);
+      }
+    } catch (err) {
+      console.error('Failed to load goal notes:', err);
+    } finally {
+      setLoadingNotes(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'notes') {
+      void fetchNotes();
+    }
+  }, [activeTab, goal.id]);
+
+  const handleAddNote = async () => {
+    if (!newNoteText.trim()) return;
+    try {
+      setSavingNote(true);
+      sound.playClick();
+      const res = await fetch(`/api/goals/${goal.id}/notes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ content: newNoteText.trim() }),
+      });
+      if (res.ok) {
+        setNewNoteText('');
+        markScheduleHandledToday(goal.id);
+        toast({
+          title: 'Note Recorded 📝',
+          description: `Progress note saved for "${goal.name}".`,
+        });
+        await fetchNotes();
+      } else {
+        toast({
+          title: 'Failed to Save Note',
+          description: 'Could not record note. Please try again.',
+          variant: 'destructive',
+        });
+      }
+    } catch (err) {
+      console.error('Failed to add note:', err);
+    } finally {
+      setSavingNote(false);
+    }
+  };
 
   const handleSaveSchedule = () => {
     sound.playClick();
@@ -207,12 +276,13 @@ function ProgressAdjustModal({
       name: goal.name,
       time: schedTime,
       enabled: schedEnabled,
+      followUpIntervalMinutes: schedFollowUpInterval,
     });
 
     toast({
       title: schedEnabled ? 'Reminder Scheduled ⏰' : 'Reminder Disabled',
       description: schedEnabled
-        ? `LifeOS will alert you at ${formatTime12h(schedTime)} for "${goal.name}".`
+        ? `LifeOS will alert you at ${formatTime12h(schedTime)} (follow-up every ${schedFollowUpInterval}m until handled) for "${goal.name}".`
         : `Schedule cleared for "${goal.name}".`,
     });
     onClose();
@@ -289,16 +359,21 @@ function ProgressAdjustModal({
         : val > 0
           ? 'in_progress'
           : 'not_started');
+    if (val > 0 || finalStatus === 'completed') {
+      markScheduleHandledToday(goal.id);
+    }
     onSave(goal, val, finalStatus);
     onClose();
   };
 
   const handleCompleteNow = () => {
+    markScheduleHandledToday(goal.id);
     onSave(goal, goal.targetValue, 'completed');
     onClose();
   };
 
   const handleSkipNow = () => {
+    markScheduleHandledToday(goal.id);
     onSave(goal, 0, 'skipped');
     onClose();
   };
@@ -410,6 +485,19 @@ function ProgressAdjustModal({
           >
             <Clock3 className="size-3.5" />
             Schedule ⏰
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('notes')}
+            className={cn(
+              'inline-flex flex-1 items-center justify-center gap-1.5 rounded-full py-1.5 font-bold transition-colors',
+              activeTab === 'notes'
+                ? 'bg-sidebar text-sidebar-foreground shadow-xs'
+                : 'text-muted-foreground hover:text-foreground',
+            )}
+          >
+            <PenLine className="size-3.5" />
+            Notes & Log 📝
           </button>
         </div>
 
@@ -616,7 +704,7 @@ function ProgressAdjustModal({
               </button>
             </div>
           </div>
-        ) : (
+        ) : activeTab === 'schedule' ? (
           /* Schedule & Timed Reminders Tab */
           <div className="space-y-5 animate-fade-in">
             {/* Enable toggle */}
@@ -682,6 +770,41 @@ function ProgressAdjustModal({
                 </div>
               </div>
             </div>
+
+            {/* Persistent Follow-Ups Settings */}
+            {schedEnabled && (
+              <div className="rounded-2xl border border-border/80 bg-card p-4 space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="grid size-9 place-items-center rounded-xl bg-primary/10 text-primary">
+                    <RotateCcw className="size-5" />
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold text-sidebar">Persistent Follow-Ups</div>
+                    <p className="text-[11px] text-muted-foreground">
+                      Follow up repeatedly once time arrives until completed or changed manually
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 pt-1">
+                  <span className="text-xs text-muted-foreground font-semibold">Follow up every:</span>
+                  {[15, 20, 30, 60].map((interval) => (
+                    <button
+                      key={interval}
+                      type="button"
+                      onClick={() => setSchedFollowUpInterval(interval)}
+                      className={cn(
+                        'rounded-full px-3 py-1 text-xs font-bold border transition-all active:scale-95',
+                        schedFollowUpInterval === interval
+                          ? 'border-primary bg-primary text-primary-foreground shadow-xs'
+                          : 'border-border/70 bg-card text-muted-foreground hover:bg-muted',
+                      )}
+                    >
+                      {interval}m
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Desktop Notification Banner */}
             <div className="rounded-2xl border border-border/70 bg-muted/30 p-4 text-xs space-y-2.5">
@@ -752,6 +875,81 @@ function ProgressAdjustModal({
               >
                 Save Schedule & Reminders
               </button>
+            </div>
+          </div>
+        ) : (
+          /* Notes & Execution Log Tab */
+          <div className="space-y-5 animate-fade-in">
+            {/* Input card */}
+            <div className="rounded-2xl border border-border/80 bg-card p-4 space-y-3">
+              <label className="text-xs font-bold text-sidebar flex items-center justify-between">
+                <span>Add Progress Note / Log</span>
+                <span className="text-[10px] text-muted-foreground font-normal">Recorded with timestamp</span>
+              </label>
+              <textarea
+                rows={3}
+                value={newNoteText}
+                onChange={(e) => setNewNoteText(e.target.value)}
+                placeholder="What did you accomplish, learn, or want to record for this task?"
+                className="focus-ring w-full rounded-xl border border-input bg-background p-3 text-xs text-foreground placeholder:text-muted-foreground/60 resize-none outline-none focus:border-primary"
+              />
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={handleAddNote}
+                  disabled={savingNote || !newNoteText.trim()}
+                  className="focus-ring inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-1.5 text-xs font-bold text-primary-foreground shadow-xs transition-transform active:scale-95 disabled:opacity-50"
+                >
+                  <PenLine className="size-3.5" />
+                  {savingNote ? 'Saving…' : 'Save Note'}
+                </button>
+              </div>
+            </div>
+
+            {/* Previous notes timeline */}
+            <div className="space-y-2.5">
+              <div className="flex items-center justify-between px-1">
+                <span className="mono-label text-[10px] text-muted-foreground">Notes & Work History ({notesList.length})</span>
+                {notesList.length > 0 && (
+                  <span className="text-[10px] text-primary font-bold">Newest first</span>
+                )}
+              </div>
+
+              {loadingNotes ? (
+                <div className="rounded-2xl border border-border/60 bg-card/50 p-6 text-center text-xs text-muted-foreground">
+                  Loading notes history…
+                </div>
+              ) : notesList.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-border p-6 text-center">
+                  <PenLine className="mx-auto size-6 text-muted-foreground/40 mb-1.5" />
+                  <p className="text-xs font-semibold text-muted-foreground">No notes recorded yet</p>
+                  <p className="text-[11px] text-muted-foreground/70 mt-0.5">
+                    Leave progress notes whenever you work on this habit to build your execution history.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-[260px] overflow-y-auto modal-scroll pr-1">
+                  {notesList.map((n) => (
+                    <div
+                      key={n.id}
+                      className="rounded-xl border border-border/70 bg-card p-3.5 text-xs space-y-1.5 shadow-2xs hover:border-border transition-colors"
+                    >
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="font-bold text-sidebar">{n.title || goal.name}</span>
+                        <span className="font-mono text-[10px] text-muted-foreground">
+                          {new Date(n.createdAt).toLocaleDateString(undefined, {
+                            month: 'short',
+                            day: 'numeric',
+                            hour: 'numeric',
+                            minute: '2-digit',
+                          })}
+                        </span>
+                      </div>
+                      <p className="text-foreground leading-relaxed whitespace-pre-wrap">{n.description}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}

@@ -256,11 +256,19 @@ export async function dispatchMcpTool(name: string, args: any = {}) {
         break;
 
       case "complete_task":
-        result = await taskService.completeTask(userId, Number(args.task_id));
+        result = await taskService.completeTask(userId, Number(args.task_id), args.note);
         break;
 
       case "delete_task":
         result = await taskService.deleteTask(userId, Number(args.task_id));
+        break;
+
+      case "add_task_note":
+        result = await taskService.addTaskNote(userId, Number(args.task_id), args.content);
+        break;
+
+      case "get_task_notes":
+        result = await taskService.getTaskNotes(userId, Number(args.task_id));
         break;
 
       // --- ACTIVITIES ---

@@ -5,7 +5,10 @@ export interface GoalSchedule {
   name?: string;
   time: string; // "HH:mm" (24-hour format, e.g. "08:30", "14:00")
   enabled: boolean;
-  lastNotifiedDate?: string; // "YYYY-MM-DD" to avoid repeated reminders on the same day
+  lastNotifiedDate?: string; // "YYYY-MM-DD"
+  lastNotifiedAt?: number; // epoch ms of last alert (for recurring follow-up)
+  followUpIntervalMinutes?: number; // follow up every N minutes (default: 20) until manually handled
+  manuallyHandledDate?: string; // "YYYY-MM-DD" when user manually completed or updated it today
 }
 
 export interface NotificationItem {
@@ -104,6 +107,25 @@ export function isScheduleDueNow(time24: string): boolean {
   // Due if we are within 20 minutes before or after scheduled time
   const diff = currentMinutes - targetMinutes;
   return diff >= -5 && diff <= 45;
+}
+
+// Check if schedule time has arrived or passed today
+export function isSchedulePastDue(time24: string): boolean {
+  if (!time24 || !time24.includes(':')) return false;
+  const now = new Date();
+  const [hStr, mStr] = time24.split(':');
+  const targetMinutes = Number(hStr) * 60 + Number(mStr);
+  const currentMinutes = now.getHours() * 60 + now.getMinutes();
+  return currentMinutes >= targetMinutes;
+}
+
+// Mark schedule manually handled for today (e.g. when completed, progress made, or rescheduled)
+export function markScheduleHandledToday(goalId: number): void {
+  const sched = getGoalSchedule(goalId);
+  if (sched) {
+    sched.manuallyHandledDate = getTodayDateString();
+    saveGoalSchedule(sched);
+  }
 }
 
 

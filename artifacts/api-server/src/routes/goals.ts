@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { and, eq } from "drizzle-orm";
-import { db, goalsTable } from "@workspace/db";
+import { and, desc, eq } from "drizzle-orm";
+import { db, goalsTable, activitiesTable } from "@workspace/db";
 import {
   CreateGoalBody,
   CreateGoalResponse,
@@ -11,7 +11,7 @@ import {
   UpdateGoalResponse,
 } from "@workspace/api-zod";
 import { requireAuth } from "../middlewares/auth";
-import { getOrCreateUser, listGoals } from "../lib/lifeos";
+import { getOrCreateUser, listGoals, todayKey } from "../lib/lifeos";
 
 const router: IRouter = Router();
 router.use(requireAuth);
@@ -116,6 +116,72 @@ router.delete("/goals/:id", async (req, res): Promise<void> => {
     return;
   }
   res.sendStatus(204);
+});
+
+router.get("/goals/:id/notes", async (req, res): Promise<void> => {
+  const goalId = Number(req.params.id);
+  if (isNaN(goalId)) {
+    res.status(400).json({ error: "Invalid goal ID" });
+    return;
+  }
+  const user = await getOrCreateUser(req.userId!);
+  const notes = await db
+    .select({
+      id: activitiesTable.id,
+      title: activitiesTable.title,
+      description: activitiesTable.description,
+      activityDate: activitiesTable.activityDate,
+      createdAt: activitiesTable.createdAt,
+    })
+    .from(activitiesTable)
+    .where(
+      and(
+        eq(activitiesTable.goalId, goalId),
+        eq(activitiesTable.userId, user.id)
+      )
+    )
+    .orderBy(desc(activitiesTable.createdAt));
+
+  res.json(notes);
+});
+
+router.post("/goals/:id/notes", async (req, res): Promise<void> => {
+  const goalId = Number(req.params.id);
+  if (isNaN(goalId)) {
+    res.status(400).json({ error: "Invalid goal ID" });
+    return;
+  }
+  const { content } = req.body || {};
+  if (!content || typeof content !== "string" || !content.trim()) {
+    res.status(400).json({ error: "Note content is required" });
+    return;
+  }
+
+  const user = await getOrCreateUser(req.userId!);
+  const [goal] = await db
+    .select({ id: goalsTable.id, name: goalsTable.name })
+    .from(goalsTable)
+    .where(and(eq(goalsTable.id, goalId), eq(goalsTable.userId, user.id)))
+    .limit(1);
+
+  if (!goal) {
+    res.status(404).json({ error: "Goal not found" });
+    return;
+  }
+
+  const [inserted] = await db
+    .insert(activitiesTable)
+    .values({
+      userId: user.id,
+      type: "goal_note",
+      title: `Note: ${goal.name}`,
+      description: content.trim(),
+      goalId,
+      activityDate: todayKey(user.timezone),
+    })
+    .returning();
+
+  res.status(201).json(inserted);
 });
 
 export default router;

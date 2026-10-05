@@ -145,27 +145,54 @@ export async function checkAndDispatchReminders() {
       if (config.goalRemindersEnabled && config.goalSchedules) {
         const schedules = config.goalSchedules as Record<
           string,
-          { goalId: number; name?: string; time: string; enabled: boolean; lastNotifiedDate?: string }
+          {
+            goalId: number;
+            name?: string;
+            time: string;
+            enabled: boolean;
+            lastNotifiedDate?: string;
+            lastNotifiedAt?: number;
+            followUpIntervalMinutes?: number;
+            manuallyHandledDate?: string;
+          }
         >;
 
         let modified = false;
+        const nowMs = Date.now();
+        const [curH, curM] = hhmm.split(":").map(Number);
+        const curMinutesTotal = (curH || 0) * 60 + (curM || 0);
+
         for (const key of Object.keys(schedules)) {
           const item = schedules[key];
-          if (
-            item &&
-            item.enabled &&
-            item.time === hhmm &&
-            item.lastNotifiedDate !== todayStr
-          ) {
+          if (!item || !item.enabled) continue;
+          if (item.manuallyHandledDate === todayStr) continue;
+
+          const [itemH, itemM] = (item.time || "08:00").split(":").map(Number);
+          const itemMinutesTotal = (itemH || 0) * 60 + (itemM || 0);
+
+          const isInitial = item.time === hhmm && item.lastNotifiedDate !== todayStr;
+          const followUpIntervalMs = (item.followUpIntervalMinutes || 20) * 60 * 1000;
+          const isFollowUp =
+            item.lastNotifiedDate === todayStr &&
+            curMinutesTotal >= itemMinutesTotal &&
+            nowMs - (item.lastNotifiedAt || 0) >= followUpIntervalMs;
+
+          if (isInitial || isFollowUp) {
             item.lastNotifiedDate = todayStr;
+            item.lastNotifiedAt = nowMs;
             modified = true;
 
             const goalName = item.name || "Daily Commitment";
-            logger.info({ userId: config.userId, goalId: item.goalId, hhmm }, "Dispatching Goal reminder push");
+            const title = isFollowUp ? `⏳ Follow-up: ${goalName}` : `⏰ Time for: ${goalName}`;
+            const body = isFollowUp
+              ? `Scheduled for ${item.time} is still pending. Ready to tackle it?`
+              : `Scheduled for ${item.time}. Ready to maintain your rhythm?`;
+
+            logger.info({ userId: config.userId, goalId: item.goalId, hhmm, isFollowUp }, "Dispatching Goal reminder push");
 
             await pushAll({
-              title: `⏰ Time for: ${goalName}`,
-              body: `Scheduled for ${item.time}. Ready to maintain your rhythm?`,
+              title,
+              body,
               url: `/today?goalId=${item.goalId}`,
               goalId: item.goalId,
             });

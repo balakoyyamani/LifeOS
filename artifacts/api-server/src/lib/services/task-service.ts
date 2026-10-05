@@ -1,5 +1,5 @@
 import { and, asc, desc, eq } from "drizzle-orm";
-import { db, tasksTable, goalsTable } from "@workspace/db";
+import { db, tasksTable, taskNotesTable, goalsTable } from "@workspace/db";
 
 export async function getTasks(
   userId: number,
@@ -110,7 +110,7 @@ export async function updateTask(
   return updated;
 }
 
-export async function completeTask(userId: number, taskId: number) {
+export async function completeTask(userId: number, taskId: number, note?: string) {
   const [task] = await db
     .update(tasksTable)
     .set({ status: "completed", completedAt: new Date() })
@@ -121,7 +121,20 @@ export async function completeTask(userId: number, taskId: number) {
     throw new Error(`Task ${taskId} not found or unauthorized.`);
   }
 
-  return { success: true, task };
+  let noteRecord = null;
+  if (note && note.trim().length > 0) {
+    const [inserted] = await db
+      .insert(taskNotesTable)
+      .values({
+        taskId,
+        userId,
+        content: note.trim(),
+      })
+      .returning();
+    noteRecord = inserted;
+  }
+
+  return { success: true, task, note: noteRecord };
 }
 
 export async function deleteTask(userId: number, taskId: number) {
@@ -135,4 +148,68 @@ export async function deleteTask(userId: number, taskId: number) {
   }
 
   return { success: true, message: `Task "${deleted.title}" deleted.` };
+}
+
+export async function getTaskNotes(userId: number, taskId: number) {
+  const [task] = await db
+    .select({ id: tasksTable.id })
+    .from(tasksTable)
+    .where(and(eq(tasksTable.id, taskId), eq(tasksTable.userId, userId)))
+    .limit(1);
+
+  if (!task) {
+    throw new Error(`Task ${taskId} not found or unauthorized.`);
+  }
+
+  return db
+    .select()
+    .from(taskNotesTable)
+    .where(and(eq(taskNotesTable.taskId, taskId), eq(taskNotesTable.userId, userId)))
+    .orderBy(desc(taskNotesTable.createdAt));
+}
+
+export async function addTaskNote(userId: number, taskId: number, content: string) {
+  const [task] = await db
+    .select({ id: tasksTable.id })
+    .from(tasksTable)
+    .where(and(eq(tasksTable.id, taskId), eq(tasksTable.userId, userId)))
+    .limit(1);
+
+  if (!task) {
+    throw new Error(`Task ${taskId} not found or unauthorized.`);
+  }
+
+  if (!content || !content.trim()) {
+    throw new Error("Note content cannot be empty.");
+  }
+
+  const [note] = await db
+    .insert(taskNotesTable)
+    .values({
+      taskId,
+      userId,
+      content: content.trim(),
+    })
+    .returning();
+
+  return note;
+}
+
+export async function deleteTaskNote(userId: number, taskId: number, noteId: number) {
+  const [deleted] = await db
+    .delete(taskNotesTable)
+    .where(
+      and(
+        eq(taskNotesTable.id, noteId),
+        eq(taskNotesTable.taskId, taskId),
+        eq(taskNotesTable.userId, userId)
+      )
+    )
+    .returning({ id: taskNotesTable.id });
+
+  if (!deleted) {
+    throw new Error(`Note ${noteId} not found or unauthorized.`);
+  }
+
+  return { success: true, message: `Note ${noteId} deleted.` };
 }

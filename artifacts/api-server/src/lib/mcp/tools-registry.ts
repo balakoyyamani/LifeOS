@@ -457,11 +457,12 @@ export const LIFEOS_MCP_TOOLS: Tool[] = [
   {
     name: "complete_task",
     description:
-      "Mark a task as completed.",
+      "Mark a task as completed with an optional completion note.",
     inputSchema: {
       type: "object",
       properties: {
         task_id: { type: "number", description: "Unique ID of the task to complete" },
+        note: { type: "string", description: "Optional completion note or summary of work done" },
       },
       required: ["task_id"],
       additionalProperties: false,
@@ -475,6 +476,33 @@ export const LIFEOS_MCP_TOOLS: Tool[] = [
       type: "object",
       properties: {
         task_id: { type: "number", description: "Unique ID of the task to delete" },
+      },
+      required: ["task_id"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "add_task_note",
+    description:
+      "Add a timestamped progress note, work log entry, or comment to a specific task in LifeOS.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        task_id: { type: "number", description: "Unique ID of the task to add a note to" },
+        content: { type: "string", description: "Content of the note or work log" },
+      },
+      required: ["task_id", "content"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "get_task_notes",
+    description:
+      "Retrieve the chronological history of notes and work logs for a task in LifeOS.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        task_id: { type: "number", description: "Unique ID of the task" },
       },
       required: ["task_id"],
       additionalProperties: false,

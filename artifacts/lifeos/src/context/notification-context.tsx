@@ -23,8 +23,10 @@ import {
   getTodayDateString,
   isNotificationSupported,
   isReminderSnoozed,
+  isSchedulePastDue,
   markAllNotificationsRead,
   markNotificationRead,
+  markScheduleHandledToday,
   requestNotificationPermission,
   saveGoalSchedule,
   saveRoutineReminders,
@@ -227,35 +229,65 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       const todayStr = getTodayDateString();
       const isQuiet = localStorage.getItem('lifeos-quiet') === 'true';
 
-      // 1. Check Goal Reminders
+      // 1. Check Goal Reminders & Persistent Follow-ups
       const currentSchedules = getGoalSchedules();
       Object.values(currentSchedules).forEach((schedule) => {
-        if (
-          schedule.enabled &&
-          schedule.time === currentHHMM &&
-          schedule.lastNotifiedDate !== todayStr &&
-          !isReminderSnoozed(`goal-${schedule.goalId}`)
-        ) {
+        if (!schedule.enabled) return;
+        if (isReminderSnoozed(`goal-${schedule.goalId}`)) return;
+        if (schedule.manuallyHandledDate === todayStr) return;
+
+        // Check if goal is already completed in current React Query state
+        const cachedQueries = queryClient.getQueryCache().findAll();
+        let isGoalDone = false;
+        for (const q of cachedQueries) {
+          const data = q.state.data as any;
+          if (data?.goals && Array.isArray(data.goals)) {
+            const g = data.goals.find((item: any) => item.id === schedule.goalId);
+            if (g && (g.status === 'completed' || (g.targetValue && g.currentValue >= g.targetValue))) {
+              isGoalDone = true;
+              break;
+            }
+          }
+        }
+        if (isGoalDone) {
+          schedule.manuallyHandledDate = todayStr;
+          saveGoalSchedule(schedule);
+          return;
+        }
+
+        const isInitialTrigger = schedule.time === currentHHMM && schedule.lastNotifiedDate !== todayStr;
+        const followUpIntervalMs = (schedule.followUpIntervalMinutes || 20) * 60 * 1000;
+        const isFollowUpTrigger =
+          schedule.lastNotifiedDate === todayStr &&
+          isSchedulePastDue(schedule.time) &&
+          now.getTime() - (schedule.lastNotifiedAt || 0) >= followUpIntervalMs;
+
+        if (isInitialTrigger || isFollowUpTrigger) {
           schedule.lastNotifiedDate = todayStr;
+          schedule.lastNotifiedAt = now.getTime();
           saveGoalSchedule(schedule);
           setSchedules(getGoalSchedules());
 
           const goalName = schedule.name || 'Your scheduled habit';
+          const isFollowUp = isFollowUpTrigger;
 
           if (!isQuiet) {
             sound.playReminderChime();
           }
 
-          sendBrowserNotification(
-            `⏰ Time for: ${goalName}`,
-            `Scheduled for ${formatTime12h(schedule.time)}. Maintain your rhythm!`,
-            { url: `/today?goalId=${schedule.goalId}` },
-          );
+          const alertTitle = isFollowUp ? `⏳ Follow-up: ${goalName}` : `⏰ Time for: ${goalName}`;
+          const alertBody = isFollowUp
+            ? `Scheduled for ${formatTime12h(schedule.time)} is still pending. Ready to take action?`
+            : `Scheduled for ${formatTime12h(schedule.time)}. Maintain your rhythm!`;
+
+          sendBrowserNotification(alertTitle, alertBody, {
+            url: `/today?goalId=${schedule.goalId}`,
+          });
 
           const notif = addNotificationToHistory({
             type: 'goal_reminder',
-            title: `⏰ Time for: ${goalName}`,
-            message: `Scheduled for ${formatTime12h(schedule.time)}. Maintain your daily rhythm!`,
+            title: alertTitle,
+            message: alertBody,
             goalId: schedule.goalId,
             url: `/today?goalId=${schedule.goalId}`,
           });
@@ -263,8 +295,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
           setNotifications(getNotificationHistory());
 
           toast({
-            title: `⏰ Time for: ${goalName}`,
-            description: `Scheduled for ${formatTime12h(schedule.time)}. Ready to take action?`,
+            title: alertTitle,
+            description: alertBody,
             action: (
               <div className="flex items-center gap-1.5">
                 <button
@@ -276,6 +308,24 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
                 >
                   <Clock3 className="size-3 text-muted-foreground" />
                   Snooze
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    schedule.manuallyHandledDate = todayStr;
+                    saveGoalSchedule(schedule);
+                    setSchedules(getGoalSchedules());
+                    markNotificationRead(notif.id);
+                    setNotifications(getNotificationHistory());
+                    toast({
+                      title: 'Follow-ups paused for today',
+                      description: `Dismissed reminders for "${goalName}".`,
+                    });
+                  }}
+                  className="focus-ring inline-flex items-center gap-1 rounded-md border border-border bg-card px-2 py-1 text-xs font-semibold text-foreground hover:bg-muted"
+                >
+                  <Check className="size-3 text-emerald-500" />
+                  Dismiss
                 </button>
               </div>
             ),

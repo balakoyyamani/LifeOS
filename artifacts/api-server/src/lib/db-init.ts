@@ -53,6 +53,18 @@ export async function ensureAllTables() {
         CREATE INDEX IF NOT EXISTS tasks_user_idx ON tasks(user_id);
         CREATE INDEX IF NOT EXISTS tasks_user_status_idx ON tasks(user_id, status);
 
+        -- Task Notes (Chronological execution log)
+        CREATE TABLE IF NOT EXISTS task_notes (
+          id SERIAL PRIMARY KEY,
+          task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+          user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          content TEXT NOT NULL,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+        CREATE INDEX IF NOT EXISTS task_notes_task_idx ON task_notes(task_id);
+        CREATE INDEX IF NOT EXISTS task_notes_user_idx ON task_notes(user_id);
+
         -- Schedules
         CREATE TABLE IF NOT EXISTS schedules (
           id SERIAL PRIMARY KEY,
