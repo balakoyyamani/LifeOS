@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { and, desc, eq } from "drizzle-orm";
-import { db, goalsTable, activitiesTable } from "@workspace/db";
+import { and, desc, eq, or } from "drizzle-orm";
+import { db, goalsTable, dailyGoalsTable, activitiesTable } from "@workspace/db";
 import {
   CreateGoalBody,
   CreateGoalResponse,
@@ -125,6 +125,27 @@ router.get("/goals/:id/notes", async (req, res): Promise<void> => {
     return;
   }
   const user = await getOrCreateUser(req.userId!);
+
+  // Resolve canonical goal ID if goalId points to dailyGoalsTable
+  let canonicalGoalId = goalId;
+  const [goal] = await db
+    .select({ id: goalsTable.id })
+    .from(goalsTable)
+    .where(and(eq(goalsTable.id, goalId), eq(goalsTable.userId, user.id)))
+    .limit(1);
+
+  if (!goal) {
+    const [dailyGoal] = await db
+      .select({ goalId: dailyGoalsTable.goalId })
+      .from(dailyGoalsTable)
+      .where(and(eq(dailyGoalsTable.id, goalId), eq(dailyGoalsTable.userId, user.id)))
+      .limit(1);
+
+    if (dailyGoal) {
+      canonicalGoalId = dailyGoal.goalId;
+    }
+  }
+
   const notes = await db
     .select({
       id: activitiesTable.id,
@@ -136,7 +157,10 @@ router.get("/goals/:id/notes", async (req, res): Promise<void> => {
     .from(activitiesTable)
     .where(
       and(
-        eq(activitiesTable.goalId, goalId),
+        or(
+          eq(activitiesTable.goalId, canonicalGoalId),
+          eq(activitiesTable.goalId, goalId)
+        ),
         eq(activitiesTable.userId, user.id)
       )
     )
@@ -158,13 +182,39 @@ router.post("/goals/:id/notes", async (req, res): Promise<void> => {
   }
 
   const user = await getOrCreateUser(req.userId!);
+
+  // Dual-resolution: Check goalsTable first, fallback to dailyGoalsTable
+  let canonicalGoalId = goalId;
+  let goalName = "";
+
   const [goal] = await db
     .select({ id: goalsTable.id, name: goalsTable.name })
     .from(goalsTable)
     .where(and(eq(goalsTable.id, goalId), eq(goalsTable.userId, user.id)))
     .limit(1);
 
-  if (!goal) {
+  if (goal) {
+    canonicalGoalId = goal.id;
+    goalName = goal.name;
+  } else {
+    const [dailyGoal] = await db
+      .select({
+        id: dailyGoalsTable.id,
+        goalId: dailyGoalsTable.goalId,
+        name: goalsTable.name,
+      })
+      .from(dailyGoalsTable)
+      .innerJoin(goalsTable, eq(goalsTable.id, dailyGoalsTable.goalId))
+      .where(and(eq(dailyGoalsTable.id, goalId), eq(dailyGoalsTable.userId, user.id)))
+      .limit(1);
+
+    if (dailyGoal) {
+      canonicalGoalId = dailyGoal.goalId;
+      goalName = dailyGoal.name;
+    }
+  }
+
+  if (!goalName) {
     res.status(404).json({ error: "Goal not found" });
     return;
   }
@@ -174,9 +224,9 @@ router.post("/goals/:id/notes", async (req, res): Promise<void> => {
     .values({
       userId: user.id,
       type: "goal_note",
-      title: `Note: ${goal.name}`,
+      title: `Note: ${goalName}`,
       description: content.trim(),
-      goalId,
+      goalId: canonicalGoalId,
       activityDate: todayKey(user.timezone),
     })
     .returning();

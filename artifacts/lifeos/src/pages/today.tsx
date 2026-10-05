@@ -215,10 +215,12 @@ function ProgressAdjustModal({
   const [loadingNotes, setLoadingNotes] = useState(false);
   const [savingNote, setSavingNote] = useState(false);
 
+  const targetGoalId = goal.goalId || goal.id;
+
   const fetchNotes = async () => {
     try {
       setLoadingNotes(true);
-      const res = await fetch(`/api/goals/${goal.id}/notes`, { credentials: 'include' });
+      const res = await fetch(`/api/goals/${targetGoalId}/notes`, { credentials: 'include' });
       if (res.ok) {
         const data = await res.json();
         setNotesList(Array.isArray(data) ? data : []);
@@ -234,14 +236,14 @@ function ProgressAdjustModal({
     if (activeTab === 'notes') {
       void fetchNotes();
     }
-  }, [activeTab, goal.id]);
+  }, [activeTab, targetGoalId, goal.id]);
 
   const handleAddNote = async () => {
     if (!newNoteText.trim()) return;
     try {
       setSavingNote(true);
       sound.playClick();
-      const res = await fetch(`/api/goals/${goal.id}/notes`, {
+      const res = await fetch(`/api/goals/${targetGoalId}/notes`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -256,14 +258,20 @@ function ProgressAdjustModal({
         });
         await fetchNotes();
       } else {
+        const errData = await res.json().catch(() => ({}));
         toast({
           title: 'Failed to Save Note',
-          description: 'Could not record note. Please try again.',
+          description: errData.error || 'Could not record note. Please try again.',
           variant: 'destructive',
         });
       }
     } catch (err) {
       console.error('Failed to add note:', err);
+      toast({
+        title: 'Network Error',
+        description: 'Failed to communicate with server. Please try again.',
+        variant: 'destructive',
+      });
     } finally {
       setSavingNote(false);
     }
