@@ -41,11 +41,29 @@ export function getTodayDateKey(): string {
   return getLocalDateKey(new Date());
 }
 
+/**
+ * Checks whether a reflection has any meaningful written content.
+ * A reflection is considered empty if it contains no wins, no lesson, and no gratitude.
+ */
+export function isReflectionEmpty(r: Partial<DailyReflection> | null | undefined): boolean {
+  if (!r) return true;
+  const hasWins = Array.isArray(r.wins) && r.wins.some((w) => typeof w === 'string' && w.trim().length > 0);
+  const hasLesson = typeof r.lesson === 'string' && r.lesson.trim().length > 0;
+  const hasGratitude = typeof r.gratitude === 'string' && r.gratitude.trim().length > 0;
+  return !hasWins && !hasLesson && !hasGratitude;
+}
+
 export function getReflectionForDate(dateStr: string): DailyReflection | null {
   try {
     const raw = localStorage.getItem(`${STORAGE_PREFIX}${dateStr}`);
     if (raw) {
-      return JSON.parse(raw) as DailyReflection;
+      const parsed = JSON.parse(raw) as DailyReflection;
+      if (isReflectionEmpty(parsed)) {
+        // Automatically purge blank reflection from storage
+        localStorage.removeItem(`${STORAGE_PREFIX}${dateStr}`);
+      } else {
+        return parsed;
+      }
     }
   } catch {
     // fallback below
@@ -71,7 +89,12 @@ export function getReflectionForDate(dateStr: string): DailyReflection | null {
   return null;
 }
 
-export function saveReflection(reflection: DailyReflection): void {
+export function saveReflection(reflection: DailyReflection): boolean {
+  if (isReflectionEmpty(reflection)) {
+    console.warn('Attempted to save an empty reflection. Aborted.');
+    return false;
+  }
+
   try {
     localStorage.setItem(
       `${STORAGE_PREFIX}${reflection.date}`,
@@ -86,8 +109,10 @@ export function saveReflection(reflection: DailyReflection): void {
       index.sort().reverse();
       localStorage.setItem(ALL_KEYS_REGISTRY, JSON.stringify(index));
     }
+    return true;
   } catch (err) {
     console.error('Failed to save reflection:', err);
+    return false;
   }
 }
 
@@ -114,12 +139,13 @@ export function getAllReflections(): DailyReflection[] {
     index.sort().reverse();
     return index
       .map((date) => getReflectionForDate(date))
-      .filter((r): r is DailyReflection => r !== null);
+      .filter((r): r is DailyReflection => r !== null && !isReflectionEmpty(r));
   } catch {
     return [];
   }
 }
 
 export function hasReflectedToday(): boolean {
-  return getReflectionForDate(getTodayDateKey()) !== null;
+  const ref = getReflectionForDate(getTodayDateKey());
+  return ref !== null && !isReflectionEmpty(ref);
 }

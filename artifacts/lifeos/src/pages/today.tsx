@@ -1356,38 +1356,50 @@ export default function Today() {
     return getLocalDateKey(d);
   }, []);
 
-  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [selectedDate, setSelectedDate] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const urlDate = params.get('date');
+      if (urlDate && /^\d{4}-\d{2}-\d{2}$/.test(urlDate)) {
+        return urlDate;
+      }
+    }
+    return null;
+  });
+
+  const todayDateKey = dashboardQuery.data?.date ? dashboardQuery.data.date.slice(0, 10) : getTodayDateKey();
+  const isHistoricalDate = Boolean(selectedDate && selectedDate !== todayDateKey);
   const isViewingYesterday = selectedDate === yesterdayDateKey;
 
-  const yesterdayGoalsQuery = useQuery({
-    queryKey: ['goals-by-date', yesterdayDateKey],
+  const historicalGoalsQuery = useQuery({
+    queryKey: ['goals-by-date', selectedDate],
     queryFn: async () => {
-      const res = await fetch(`/api/today?date=${yesterdayDateKey}`, { credentials: 'include' });
-      if (!res.ok) throw new Error('Failed to load yesterday goals');
+      const res = await fetch(`/api/today?date=${selectedDate}`, { credentials: 'include' });
+      if (!res.ok) throw new Error('Failed to load historical goals');
       return res.json() as Promise<TodayData>;
     },
-    enabled: isViewingYesterday,
+    enabled: isHistoricalDate,
   });
 
   const allGoalsQuery = useGetGoals();
   const dashboard = dashboardQuery.data;
   const today = todayQuery.data;
   const allGoals = allGoalsQuery.data ?? [];
-  const activeDay = isViewingYesterday && yesterdayGoalsQuery.data ? yesterdayGoalsQuery.data : today;
+  const activeDay = isHistoricalDate && historicalGoalsQuery.data ? historicalGoalsQuery.data : today;
   const goals = activeDay?.goals ?? [];
-  const dailyScore = isViewingYesterday
-    ? (yesterdayGoalsQuery.data?.dailyScore ?? 33)
+  const dailyScore = isHistoricalDate
+    ? (historicalGoalsQuery.data?.dailyScore ?? 33)
     : (dashboard?.dailyScore ?? today?.dailyScore ?? 0);
-  const dailyCompletion = isViewingYesterday
-    ? (yesterdayGoalsQuery.data?.dailyCompletion ?? 33)
+  const dailyCompletion = isHistoricalDate
+    ? (historicalGoalsQuery.data?.dailyCompletion ?? 33)
     : (dashboard?.dailyCompletion ?? today?.dailyCompletion ?? 0);
 
   const isWeekend = useMemo(() => {
-    const dateStr = (isViewingYesterday ? yesterdayDateKey : today?.date) ?? dashboard?.date;
+    const dateStr = (isHistoricalDate ? selectedDate : today?.date) ?? dashboard?.date;
     const d = dateStr ? new Date(`${dateStr.slice(0, 10)}T12:00:00Z`) : new Date();
     const day = d.getUTCDay();
     return day === 0 || day === 6;
-  }, [isViewingYesterday, yesterdayDateKey, today?.date, dashboard?.date]);
+  }, [isHistoricalDate, selectedDate, today?.date, dashboard?.date]);
 
   const weekdayGoals = useMemo(() => {
     if (!isWeekend) return [];
@@ -1399,12 +1411,12 @@ export default function Today() {
       todayQuery.refetch(),
       dashboardQuery.refetch(),
       allGoalsQuery.refetch(),
-      isViewingYesterday ? yesterdayGoalsQuery.refetch() : Promise.resolve(),
+      isHistoricalDate ? historicalGoalsQuery.refetch() : Promise.resolve(),
     ]);
   };
 
   const handleDraftReflection = (suggestedText: string) => {
-    const dateKey = isViewingYesterday ? yesterdayDateKey : getTodayDateKey();
+    const dateKey = isHistoricalDate && selectedDate ? selectedDate : getTodayDateKey();
     const existing = getReflectionForDate(dateKey);
     const updated: DailyReflection = {
       date: dateKey,
@@ -1433,8 +1445,7 @@ export default function Today() {
     }
   });
 
-  const todayDateKey = dashboard?.date ? dashboard.date.slice(0, 10) : getTodayDateKey();
-  const activeDateKey = isViewingYesterday ? yesterdayDateKey : todayDateKey;
+  const activeDateKey = isHistoricalDate && selectedDate ? selectedDate : todayDateKey;
   const activeReflection = useMemo(() => {
     return getReflectionForDate(activeDateKey);
   }, [activeDateKey, todayReflection]);
@@ -1675,7 +1686,7 @@ export default function Today() {
   const isLoading = dashboardQuery.isLoading || todayQuery.isLoading;
 
   const contributions =
-    (isViewingYesterday ? yesterdayGoalsQuery.data?.categoryContributions : today?.categoryContributions) ??
+    (isHistoricalDate ? historicalGoalsQuery.data?.categoryContributions : today?.categoryContributions) ??
     dashboard?.categoryContributions ??
     [];
 
@@ -1710,7 +1721,7 @@ export default function Today() {
           <div>
             <div className="flex flex-wrap items-center gap-2.5">
               <span className="mono-label text-muted-foreground" data-testid="text-today-date">
-                {isViewingYesterday ? `Yesterday · ${yesterdayDateKey}` : dateLabel}
+                {isHistoricalDate && selectedDate ? (isViewingYesterday ? `Yesterday · ${yesterdayDateKey}` : `Archive · ${selectedDate}`) : dateLabel}
               </span>
               <div className="inline-flex items-center rounded-full border border-border/80 bg-card p-0.5 text-[11px] font-extrabold shadow-2xs">
                 <button
@@ -1729,10 +1740,15 @@ export default function Today() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setSelectedDate(null)}
+                  onClick={() => {
+                    setSelectedDate(null);
+                    if (typeof window !== 'undefined') {
+                      window.history.replaceState({}, '', '/today');
+                    }
+                  }}
                   className={cn(
                     'rounded-full px-2.5 py-0.5 transition-all',
-                    !isViewingYesterday
+                    !isHistoricalDate
                       ? 'bg-sidebar text-sidebar-foreground shadow-xs'
                       : 'text-muted-foreground hover:text-foreground',
                   )}
@@ -1747,11 +1763,11 @@ export default function Today() {
               className="mt-3 text-4xl font-extrabold tracking-[-.07em] text-sidebar sm:text-5xl"
               data-testid="text-today-greeting"
             >
-              {isViewingYesterday ? 'Yesterday’s Rhythm.' : (dashboard?.greeting || 'Good morning.')}
+              {isHistoricalDate ? (isViewingYesterday ? 'Yesterday’s Rhythm.' : `${selectedDate} Rhythm.`) : (dashboard?.greeting || 'Good morning.')}
             </h1>
             <p className="mt-2 text-sm text-muted-foreground">
-              {isViewingYesterday
-                ? 'Your completed commitments and recorded progress from yesterday.'
+              {isHistoricalDate
+                ? 'Your completed commitments and recorded progress from this day.'
                 : 'Here is the shape of your day and honest progress.'}
             </p>
           </div>
@@ -2146,8 +2162,8 @@ export default function Today() {
                   </div>
                 </div>
 
-                {/* Yesterday's Inspection Banner */}
-                {isViewingYesterday && (
+                {/* Historical Day Inspection Banner */}
+                {isHistoricalDate && selectedDate && (
                   <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-[24px] border border-primary/40 bg-gradient-to-r from-primary/[0.08] to-card p-5 text-xs shadow-xs animate-in fade-in">
                     <div className="flex items-center gap-3.5">
                       <div className="grid size-10 shrink-0 place-items-center rounded-2xl bg-primary/20 text-sidebar">
@@ -2155,7 +2171,11 @@ export default function Today() {
                       </div>
                       <div>
                         <div className="font-extrabold text-sidebar flex items-center gap-2">
-                          <span>Viewing Yesterday's Runway ({yesterdayDateKey})</span>
+                          <span>
+                            {isViewingYesterday
+                              ? `Viewing Yesterday's Runway (${yesterdayDateKey})`
+                              : `Viewing Past Runway (${selectedDate})`}
+                          </span>
                           <span className="rounded-full bg-primary/20 px-2 py-0.5 text-[10px] text-primary font-black">
                             {dailyScore}% Score ({goals.filter((g) => g.status === 'completed').length} completed)
                           </span>
@@ -2166,7 +2186,7 @@ export default function Today() {
                           )}
                         </div>
                         <p className="text-muted-foreground text-[11px] mt-0.5 leading-relaxed">
-                          Your completed commitments and recorded progress from yesterday are preserved here.
+                          Your completed commitments and recorded progress from this day are preserved here.
                         </p>
                       </div>
                     </div>
@@ -2174,16 +2194,21 @@ export default function Today() {
                       <button
                         type="button"
                         onClick={() => setShowEveningReflection(true)}
-                        className="focus-ring inline-flex items-center gap-1.5 rounded-full border border-primary/40 bg-card px-3.5 py-2 text-xs font-bold text-foreground shadow-2xs hover:bg-muted transition-all active:scale-95"
-                        title="View yesterday's evening reflection & wins"
+                        className="focus-ring inline-flex items-center gap-1.5 rounded-full border border-primary/40 bg-card px-3.5 py-2 text-xs font-bold text-foreground shadow-2xs hover:bg-muted transition-all active:scale-95 cursor-pointer"
+                        title="View evening reflection & wins for this day"
                       >
                         <Moon className="size-3.5 text-primary" />
                         <span>View Reflection</span>
                       </button>
                       <button
                         type="button"
-                        onClick={() => setSelectedDate(null)}
-                        className="focus-ring inline-flex items-center gap-1.5 rounded-full bg-sidebar px-4 py-2 text-xs font-extrabold text-sidebar-foreground shadow-xs hover:bg-sidebar/90 transition-all active:scale-95"
+                        onClick={() => {
+                          setSelectedDate(null);
+                          if (typeof window !== 'undefined') {
+                            window.history.replaceState({}, '', '/today');
+                          }
+                        }}
+                        className="focus-ring inline-flex items-center gap-1.5 rounded-full bg-sidebar px-4 py-2 text-xs font-extrabold text-sidebar-foreground shadow-xs hover:bg-sidebar/90 transition-all active:scale-95 cursor-pointer"
                       >
                         <span>Return to Today</span>
                         <ArrowRight className="size-3.5 text-accent" />

@@ -1,14 +1,17 @@
 import { useMemo, useState } from 'react';
 import {
+  ArrowRight,
   Award,
   BarChart3,
   BookOpen,
   Briefcase,
   Calendar,
+  Check,
   CheckCircle2,
   Clock,
   Coffee,
   Compass,
+  Copy,
   Dumbbell,
   Flame,
   Heart,
@@ -24,13 +27,16 @@ import {
   X,
   Zap,
 } from 'lucide-react';
+import { useLocation } from 'wouter';
+import { useQuery } from '@tanstack/react-query';
 import { useGetDashboard, useGetGoals, useGetToday } from '@workspace/api-client-react';
-import type { Category } from '@workspace/api-client-react';
+import type { Category, DailyGoal, Today as TodayData } from '@workspace/api-client-react';
 import { AppShell, ProfileChip } from '@/components/app-shell';
 import { HallOfFameModal } from '@/components/hall-of-fame-modal';
 import { ModalPortal } from '@/components/modal-portal';
+import { useToast } from '@/hooks/use-toast';
 import { type UserStatsSnapshot, evaluateBadges } from '@/lib/badges';
-import { ENERGY_LEVELS, getAllReflections, getLocalDateKey } from '@/lib/reflections';
+import { ENERGY_LEVELS, getAllReflections, getLocalDateKey, getReflectionForDate, getTodayDateKey } from '@/lib/reflections';
 import { getWeekDetails, getWeeklyObjectives } from '@/lib/weekly';
 import { getShieldVaultState, getStreakTier } from '@/lib/shields';
 import { getDailyHistoryRecord } from '@/lib/history';
@@ -97,6 +103,346 @@ const categoryMeta: Record<
   },
 };
 
+function DayActivityModal({
+  dateStr,
+  onClose,
+}: {
+  dateStr: string;
+  onClose: () => void;
+}) {
+  const [, setLocation] = useLocation();
+  const { toast } = useToast();
+  const [filter, setFilter] = useState<'all' | 'completed' | 'in_progress'>('all');
+
+  const dayGoalsQuery = useQuery({
+    queryKey: ['goals-by-date', dateStr],
+    queryFn: async () => {
+      const res = await fetch(`/api/today?date=${dateStr}`, { credentials: 'include' });
+      if (!res.ok) throw new Error('Failed to load day activities');
+      return res.json() as Promise<TodayData>;
+    },
+  });
+
+  const reflection = useMemo(() => getReflectionForDate(dateStr), [dateStr]);
+  const data = dayGoalsQuery.data;
+  const goals: DailyGoal[] = data?.goals ?? [];
+  const score = data?.dailyScore ?? 0;
+  const completedGoals = goals.filter((g: DailyGoal) => g.status === 'completed');
+  const inProgressGoals = goals.filter((g: DailyGoal) => g.status === 'in_progress');
+
+  const displayedGoals = useMemo(() => {
+    if (filter === 'completed') return completedGoals;
+    if (filter === 'in_progress') return inProgressGoals;
+    return goals;
+  }, [filter, goals, completedGoals, inProgressGoals]);
+
+  const formattedDate = useMemo(() => {
+    const d = new Date(`${dateStr.slice(0, 10)}T12:00:00Z`);
+    return d.toLocaleDateString('en-US', {
+      weekday: 'long',
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
+    });
+  }, [dateStr]);
+
+  const handleOpenInToday = () => {
+    onClose();
+    setLocation(`/today?date=${dateStr}`);
+  };
+
+  const handleCopyReflection = () => {
+    if (!reflection) return;
+    const energyObj = ENERGY_LEVELS.find((e) => e.level === reflection.energyLevel);
+    const md = `### 🌙 LifeOS Daily Reflection — ${reflection.date}
+- **Score**: ${score}%
+- **Energy**: ${energyObj?.icon} ${energyObj?.label} (${reflection.energyLevel}/5)
+- **Mood**: ${reflection.moodTags?.join(', ') || 'None'}
+
+#### 🏆 3 Daily Wins
+${reflection.wins?.filter(Boolean).map((w, i) => `${i + 1}. ${w}`).join('\n') || 'None'}
+
+#### 💡 Lesson / Friction
+${reflection.lesson || 'None'}
+
+#### 🙏 Gratitude
+${reflection.gratitude || 'None'}
+`;
+    void navigator.clipboard.writeText(md);
+    toast({
+      title: 'Copied to clipboard',
+      description: `Reflection for ${reflection.date} copied.`,
+    });
+  };
+
+  return (
+    <ModalPortal>
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 sm:p-6 backdrop-blur-md animate-fade-in"
+        onClick={onClose}
+      >
+        <div
+          className="relative max-h-[85vh] sm:max-h-[88vh] w-full max-w-2xl overflow-y-auto modal-scroll rounded-3xl border border-border/80 bg-card p-6 shadow-2xl transition-all sm:p-8"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Header */}
+          <div className="flex items-start justify-between border-b border-border/60 pb-5">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="mono-label text-muted-foreground">{dateStr}</span>
+                {dateStr === getTodayDateKey() && (
+                  <span className="rounded-full bg-accent/20 px-2 py-0.5 text-[10px] font-bold text-accent-foreground">
+                    Today
+                  </span>
+                )}
+              </div>
+              <h2 className="mt-1 text-2xl font-black tracking-tight text-sidebar">
+                {formattedDate}
+              </h2>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Exact habits, execution logs, and reflections recorded on this day.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="focus-ring rounded-full p-2 text-muted-foreground hover:bg-muted hover:text-foreground cursor-pointer"
+              title="Close modal"
+            >
+              <X className="size-5" />
+            </button>
+          </div>
+
+          {/* Quick Metrics Bar */}
+          <div className="mt-5 grid grid-cols-3 gap-3 rounded-2xl border border-border/70 bg-muted/30 p-4 text-center">
+            <div>
+              <div className="mono-label text-[10px] text-muted-foreground">Daily Score</div>
+              <div className="mt-1 font-mono text-2xl font-black text-primary">{score}%</div>
+            </div>
+            <div>
+              <div className="mono-label text-[10px] text-muted-foreground">Commitments</div>
+              <div className="mt-1 font-mono text-2xl font-black text-sidebar">
+                {completedGoals.length} / {goals.length}
+              </div>
+            </div>
+            <div>
+              <div className="mono-label text-[10px] text-muted-foreground">Evening Reflection</div>
+              <div className="mt-1 flex items-center justify-center gap-1 text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                {reflection ? 'Recorded ✓' : 'Not recorded'}
+              </div>
+            </div>
+          </div>
+
+          {/* Goals Breakdown */}
+          <div className="mt-6 space-y-4">
+            <div className="flex items-center justify-between border-b border-border/60 pb-2.5">
+              <div className="flex items-center gap-2">
+                <Target className="size-4 text-primary" />
+                <h3 className="text-sm font-bold text-sidebar">
+                  Habits & Commitments ({goals.length})
+                </h3>
+              </div>
+              <div className="inline-flex items-center gap-1 rounded-lg border border-border/80 bg-muted/40 p-0.5 text-[10px] font-bold">
+                <button
+                  type="button"
+                  onClick={() => setFilter('all')}
+                  className={cn(
+                    'rounded-md px-2 py-0.5 transition-all cursor-pointer',
+                    filter === 'all' ? 'bg-card text-foreground shadow-2xs font-extrabold' : 'text-muted-foreground hover:text-foreground',
+                  )}
+                >
+                  All ({goals.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFilter('completed')}
+                  className={cn(
+                    'rounded-md px-2 py-0.5 transition-all cursor-pointer',
+                    filter === 'completed' ? 'bg-card text-foreground shadow-2xs font-extrabold' : 'text-muted-foreground hover:text-foreground',
+                  )}
+                >
+                  Done ({completedGoals.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFilter('in_progress')}
+                  className={cn(
+                    'rounded-md px-2 py-0.5 transition-all cursor-pointer',
+                    filter === 'in_progress' ? 'bg-card text-foreground shadow-2xs font-extrabold' : 'text-muted-foreground hover:text-foreground',
+                  )}
+                >
+                  In Motion ({inProgressGoals.length})
+                </button>
+              </div>
+            </div>
+
+            {dayGoalsQuery.isLoading ? (
+              <div className="space-y-2 py-4">
+                <div className="h-12 animate-pulse rounded-xl bg-muted/40" />
+                <div className="h-12 animate-pulse rounded-xl bg-muted/40" />
+                <div className="h-12 animate-pulse rounded-xl bg-muted/40" />
+              </div>
+            ) : displayedGoals.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-border/80 p-6 text-center text-xs text-muted-foreground">
+                No commitments recorded under this filter for {dateStr}.
+              </div>
+            ) : (
+              <div className="space-y-2.5 max-h-[280px] overflow-y-auto modal-scroll pr-1">
+                {displayedGoals.map((g: DailyGoal) => {
+                  const meta = categoryMeta[g.category] || categoryMeta.career;
+                  const Icon = meta.icon;
+                  const isDone = g.status === 'completed';
+                  const inProg = g.status === 'in_progress';
+                  const pct = Math.min(100, Math.round((g.currentValue / Math.max(1, g.targetValue)) * 100));
+
+                  return (
+                    <div
+                      key={g.id}
+                      className={cn(
+                        'flex flex-col gap-2 rounded-2xl border p-3.5 transition-all',
+                        isDone
+                          ? 'border-emerald-500/30 bg-emerald-500/[0.04]'
+                          : inProg
+                            ? 'border-primary/30 bg-primary/[0.04]'
+                            : 'border-border/70 bg-card',
+                      )}
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className={cn('grid size-7 shrink-0 place-items-center rounded-lg text-sidebar', meta.color)}>
+                            <Icon className="size-3.5" />
+                          </div>
+                          <div className="min-w-0">
+                            <span className={cn('text-xs font-bold text-sidebar truncate block', isDone && 'line-through opacity-70')}>
+                              {g.name}
+                            </span>
+                            <span className="text-[10px] text-muted-foreground">
+                              {meta.label} · Target: {g.targetValue} {g.unit}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="font-mono text-xs font-extrabold text-sidebar">
+                            {g.currentValue} / {g.targetValue} {g.unit}
+                          </span>
+                          <span
+                            className={cn(
+                              'rounded-full px-2 py-0.5 text-[10px] font-bold flex items-center gap-1',
+                              isDone
+                                ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
+                                : inProg
+                                  ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300'
+                                  : g.status === 'skipped'
+                                    ? 'bg-muted text-muted-foreground'
+                                    : 'bg-muted/60 text-muted-foreground',
+                            )}
+                          >
+                            {isDone && <Check className="size-2.5 stroke-[3]" />}
+                            {inProg && <Zap className="size-2.5" />}
+                            <span>{isDone ? 'Completed' : inProg ? `${pct}%` : g.status === 'skipped' ? 'Skipped' : 'Not started'}</span>
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Progress Track */}
+                      <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted/60">
+                        <div
+                          className={cn(
+                            'h-full rounded-full transition-all duration-500',
+                            isDone ? 'bg-emerald-500' : inProg ? 'bg-primary' : 'bg-muted-foreground/30',
+                          )}
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Evening Reflection & Wins Section */}
+          {reflection && (
+            <div className="mt-6 rounded-2xl border border-border/80 bg-muted/20 p-4 space-y-3">
+              <div className="flex items-center justify-between border-b border-border/60 pb-2">
+                <div className="flex items-center gap-2">
+                  <Moon className="size-4 text-primary" />
+                  <span className="text-xs font-bold text-sidebar">Evening Reflection & Wins</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleCopyReflection}
+                  className="focus-ring inline-flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-bold text-muted-foreground hover:bg-muted hover:text-foreground cursor-pointer"
+                >
+                  <Copy className="size-3" />
+                  <span>Copy Markdown</span>
+                </button>
+              </div>
+
+              {/* Energy & Mood */}
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-muted-foreground">Energy state:</span>
+                <span className="font-bold text-primary">
+                  {ENERGY_LEVELS.find((e) => e.level === reflection.energyLevel)?.icon}{' '}
+                  {ENERGY_LEVELS.find((e) => e.level === reflection.energyLevel)?.label} ({reflection.energyLevel}/5)
+                </span>
+              </div>
+
+              {/* 3 Wins */}
+              {reflection.wins?.some(Boolean) && (
+                <div>
+                  <span className="mono-label text-[10px] text-muted-foreground">3 Daily Wins:</span>
+                  <ul className="mt-1 list-inside list-disc space-y-0.5 text-xs font-medium text-foreground">
+                    {reflection.wins.map((w, i) => (
+                      w ? <li key={i}>{w}</li> : null
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Lesson */}
+              {reflection.lesson && (
+                <div className="text-xs">
+                  <span className="mono-label text-[10px] text-muted-foreground">Lesson learned:</span>
+                  <p className="mt-0.5 italic text-muted-foreground">"{reflection.lesson}"</p>
+                </div>
+              )}
+
+              {/* Gratitude */}
+              {reflection.gratitude && (
+                <div className="flex items-center gap-1.5 border-t border-border/60 pt-2 text-[11px] text-muted-foreground">
+                  <Heart className="size-3 text-rose-500 shrink-0" />
+                  <span className="italic">"{reflection.gratitude}"</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Action Footer */}
+          <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-border/80 pt-4">
+            <button
+              type="button"
+              onClick={handleOpenInToday}
+              className="focus-ring inline-flex items-center gap-1.5 rounded-full border border-primary/40 bg-card px-4 py-2 text-xs font-extrabold text-foreground shadow-2xs hover:border-primary hover:bg-muted active:scale-95 transition-all cursor-pointer"
+            >
+              <span>Open in Today Runway</span>
+              <ArrowRight className="size-3.5 text-accent" />
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="focus-ring rounded-full bg-sidebar px-5 py-2 text-xs font-extrabold text-sidebar-foreground shadow-xs hover:bg-sidebar/90 active:scale-95 transition-all cursor-pointer"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    </ModalPortal>
+  );
+}
+
 export default function Analytics() {
   const dashboardQuery = useGetDashboard();
   const todayQuery = useGetToday();
@@ -108,6 +454,7 @@ export default function Analytics() {
 
   const [selectedPillar, setSelectedPillar] = useState<string>('all');
   const [hoveredDay, setHoveredDay] = useState<DayActivity | null>(null);
+  const [selectedDayDate, setSelectedDayDate] = useState<string | null>(null);
   const [showShieldExplainer, setShowShieldExplainer] = useState(false);
   const [showHallOfFame, setShowHallOfFame] = useState(false);
   const reflections = useMemo(() => getAllReflections(), []);
@@ -348,6 +695,9 @@ export default function Analytics() {
               <h2 className="mt-1 text-xl font-extrabold tracking-[-.03em] text-sidebar">
                 35-Day Activity Heatmap
               </h2>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Click any day cell to inspect the exact commitments, habits, and reflections recorded.
+              </p>
             </div>
 
             {/* Intensity legend */}
@@ -391,13 +741,16 @@ export default function Analytics() {
                   <button
                     key={day.date}
                     type="button"
+                    onClick={() => setSelectedDayDate(day.date)}
                     onMouseEnter={() => setHoveredDay(day)}
                     onFocus={() => setHoveredDay(day)}
                     className={cn(
-                      'focus-ring group relative flex h-14 flex-col items-center justify-center rounded-2xl transition-all hover:scale-105 active:scale-95',
+                      'focus-ring group relative flex h-14 flex-col items-center justify-center rounded-2xl cursor-pointer transition-all hover:scale-105 active:scale-95',
                       intensityClass,
                       day.isToday && 'ring-2 ring-accent ring-offset-2 ring-offset-background',
+                      selectedDayDate === day.date && 'ring-2 ring-primary ring-offset-2 ring-offset-background scale-105 shadow-md',
                     )}
+                    title={`Click to view habit and activity breakdown for ${day.dayLabel}`}
                   >
                     <span className="font-mono text-xs">
                       {day.isDeload && day.score === 0 ? '☕' : day.score}
@@ -432,13 +785,22 @@ export default function Analytics() {
                 <span className="text-muted-foreground">· Daily Score:</span>
                 <span className="font-mono font-bold text-sidebar">{hoveredDay.score} / 100</span>
               </div>
-              <div className="flex items-center gap-4 text-muted-foreground">
+              <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-muted-foreground">
                 <span>
                   Commitments: <strong className="text-foreground">{hoveredDay.completedCount} / {hoveredDay.totalCount}</strong>
                 </span>
                 <span>
                   Focus: <strong className="text-foreground">{hoveredDay.focusMinutes} mins</strong>
                 </span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedDayDate(hoveredDay.date)}
+                  className="focus-ring inline-flex items-center gap-1.5 rounded-full bg-sidebar px-3 py-1 text-[11px] font-extrabold text-sidebar-foreground shadow-2xs hover:bg-sidebar/90 transition-all active:scale-95 cursor-pointer"
+                  title="View full commitments and reflections for this day"
+                >
+                  <span>View Day Activities</span>
+                  <ArrowRight className="size-3 text-accent" />
+                </button>
               </div>
             </div>
           )}
@@ -745,6 +1107,14 @@ export default function Analytics() {
           <HallOfFameModal
             stats={userStats}
             onClose={() => setShowHallOfFame(false)}
+          />
+        )}
+
+        {/* Day Activity Details Modal */}
+        {selectedDayDate && (
+          <DayActivityModal
+            dateStr={selectedDayDate}
+            onClose={() => setSelectedDayDate(null)}
           />
         )}
     </AppShell>

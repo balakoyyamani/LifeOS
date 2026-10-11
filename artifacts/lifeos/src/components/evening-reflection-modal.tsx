@@ -24,6 +24,7 @@ import {
   getAllReflections,
   getReflectionForDate,
   getTodayDateKey,
+  isReflectionEmpty,
   saveReflection,
 } from '@/lib/reflections';
 import { cn } from '@/lib/utils';
@@ -65,6 +66,10 @@ export function EveningReflectionModal({
   const [isCompleted, setIsCompleted] = useState(false);
   const [soundMuted, setSoundMuted] = useState(!sound.isEnabled());
 
+  const hasContent = Boolean(
+    win1.trim() || win2.trim() || win3.trim() || lesson.trim() || gratitude.trim(),
+  );
+
   const allReflections = useMemo(() => getAllReflections(), [isCompleted]);
 
   const toggleSound = () => {
@@ -86,6 +91,17 @@ export function EveningReflectionModal({
   };
 
   const handleSave = () => {
+    if (!hasContent) {
+      sound.playClick();
+      toast({
+        title: 'Reflection is empty',
+        description:
+          'Please enter at least one daily win, lesson learned, or gratitude note before closing your day.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     const reflection: DailyReflection = {
       date: dateKey,
       energyLevel,
@@ -96,7 +112,16 @@ export function EveningReflectionModal({
       completedAt: new Date().toISOString(),
     };
 
-    saveReflection(reflection);
+    const saved = saveReflection(reflection);
+    if (!saved) {
+      toast({
+        title: 'Could not save reflection',
+        description: 'Please enter at least one win, lesson, or gratitude note.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     sound.playEveningBell();
     setIsCompleted(true);
     if (onSaved) onSaved(reflection);
@@ -499,18 +524,32 @@ ${r.gratitude || 'None'}
             </div>
 
             {/* Action Bar */}
-            <div className="flex items-center justify-between border-t border-border/80 pt-4">
-              <button
-                type="button"
-                onClick={onClose}
-                className="focus-ring rounded-full px-4 py-2 text-xs font-bold text-muted-foreground hover:bg-muted"
-              >
-                Cancel
-              </button>
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 border-t border-border/80 pt-4">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="focus-ring rounded-full px-4 py-2 text-xs font-bold text-muted-foreground hover:bg-muted"
+                >
+                  Cancel
+                </button>
+                {!hasContent && (
+                  <span className="text-[11px] font-semibold text-amber-600 dark:text-amber-400">
+                    * Enter at least 1 win, lesson, or gratitude note
+                  </span>
+                )}
+              </div>
               <button
                 type="button"
                 onClick={handleSave}
-                className="focus-ring inline-flex items-center gap-2 rounded-full bg-sidebar px-6 py-2.5 text-xs font-extrabold text-sidebar-foreground shadow-sm transition-transform hover:bg-sidebar/90 active:scale-95"
+                disabled={!hasContent}
+                className={cn(
+                  'focus-ring inline-flex items-center justify-center gap-2 rounded-full px-6 py-2.5 text-xs font-extrabold shadow-sm transition-transform active:scale-95',
+                  hasContent
+                    ? 'bg-sidebar text-sidebar-foreground hover:bg-sidebar/90 cursor-pointer'
+                    : 'bg-muted text-muted-foreground cursor-not-allowed opacity-60',
+                )}
+                title={hasContent ? 'Save reflection and close day' : 'Enter at least 1 win, lesson, or gratitude note to save'}
               >
                 <Sparkles className="size-3.5 text-accent" />
                 <span>Close Day & Save Reflection</span>
