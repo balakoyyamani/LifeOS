@@ -33,6 +33,7 @@ import type { Category } from '@workspace/api-client-react';
 import { AppShell, ProfileChip } from '@/components/app-shell';
 import { sound } from '@/lib/sound';
 import { getReflectionForDate } from '@/lib/reflections';
+import { getDailyHistoryRecord } from '@/lib/history';
 import {
   type WeekRange,
   type WeeklyObjective,
@@ -210,27 +211,25 @@ export default function WeeklyPage() {
 
   // Synthesize 7-day retrospective data for this week
   const streak = dashboard?.streak ?? 0;
-  const todayScore = dashboard?.dailyScore ?? today?.dailyScore ?? 85;
+  const todayScore = dashboard?.dailyScore ?? today?.dailyScore ?? 0;
 
   const weeklyDaysData = useMemo(() => {
     const now = new Date();
-    const todayIndex = now.getDay() === 0 ? 6 : now.getDay() - 1; // Mon = 0
 
-    return week.days.map((day, idx) => {
-      const reflectionEntry = getReflectionForDate(day.dateStr);
+    return week.days.map((day) => {
       const isPastOrToday = day.date <= now;
+      const historyRecord = getDailyHistoryRecord(day.dateStr);
 
-      // Realistic mock or actual score variance
       let score = 0;
       let focus = 0;
 
       if (day.isToday) {
         score = todayScore;
-        focus = dashboard?.focusMinutes ?? 45;
+        focus = dashboard?.focusMinutes ?? historyRecord.focusMinutes ?? 0;
       } else if (isPastOrToday) {
-        const seed = (day.dayNumber * 19) % 30;
-        score = Math.min(100, Math.max(50, 72 + seed));
-        focus = 35 + ((day.dayNumber * 7) % 55);
+        // Genuine recorded history from actual activity. If nothing was done (e.g. yesterday), this is accurately 0.
+        score = historyRecord.score;
+        focus = historyRecord.focusMinutes;
       } else {
         score = 0;
         focus = 0;
@@ -240,20 +239,22 @@ export default function WeeklyPage() {
         ...day,
         score: Math.round(score),
         focusMinutes: focus,
-        hasReflection: reflectionEntry !== null,
-        reflection: reflectionEntry,
+        hasReflection: historyRecord.hasReflection,
+        reflection: getReflectionForDate(day.dateStr),
+        isShielded: historyRecord.isShielded,
         isPastOrToday,
       };
     });
   }, [week, todayScore, dashboard?.focusMinutes]);
 
   // Aggregate weekly stats
-  const activeDays = weeklyDaysData.filter((d) => d.isPastOrToday && d.score > 0);
+  const elapsedDays = weeklyDaysData.filter((d) => d.isPastOrToday);
+  const activeDays = elapsedDays.filter((d) => d.score > 0 || d.isShielded);
   const avgScore =
-    activeDays.length > 0
-      ? Math.round(activeDays.reduce((acc, d) => acc + d.score, 0) / activeDays.length)
+    elapsedDays.length > 0
+      ? Math.round(elapsedDays.reduce((acc, d) => acc + d.score, 0) / elapsedDays.length)
       : 0;
-  const totalFocus = activeDays.reduce((acc, d) => acc + d.focusMinutes, 0);
+  const totalFocus = elapsedDays.reduce((acc, d) => acc + d.focusMinutes, 0);
   const okrsCompleted = objectives.filter((o) => o.completed).length;
 
   // Gather all evening reflection wins from this week
@@ -417,7 +418,12 @@ ${reflection.highestLeverageCommitment || 'Execute highest priority milestones w
                 <div className="my-3 w-full">
                   {d.isPastOrToday ? (
                     <div>
-                      <div className="font-mono text-sm font-black text-primary">
+                      <div
+                        className={cn(
+                          'font-mono text-sm font-black',
+                          d.score > 0 ? 'text-primary' : 'text-sidebar-foreground/40',
+                        )}
+                      >
                         {d.score}%
                       </div>
                       <div className="mt-1 h-1 w-full rounded-full bg-sidebar-accent">
@@ -432,7 +438,12 @@ ${reflection.highestLeverageCommitment || 'Execute highest priority milestones w
                   )}
                 </div>
 
-                <div className="flex items-center justify-center gap-1 text-[10px] text-sidebar-foreground/60">
+                <div className="flex items-center justify-center gap-1.5 text-[10px] text-sidebar-foreground/60">
+                  {d.isShielded && (
+                    <span title="Resilience Shield Active">
+                      <Shield className="size-3 text-accent" />
+                    </span>
+                  )}
                   {d.hasReflection && (
                     <span title="Evening Reflection Recorded">
                       <Moon className="size-3 text-accent" />

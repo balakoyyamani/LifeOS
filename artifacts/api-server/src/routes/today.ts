@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { and, eq } from "drizzle-orm";
+import { and, eq, gte, lte } from "drizzle-orm";
 import { db, dailyGoalsTable, goalProgressTable } from "@workspace/db";
 import { goalsTable } from "@workspace/db";
 import {
@@ -64,6 +64,69 @@ router.get("/dashboard", async (req, res): Promise<void> => {
       highlights,
     }),
   );
+});
+
+router.get("/history", async (req, res): Promise<void> => {
+  const user = await getOrCreateUser(req.userId!);
+  const startDate = typeof req.query.startDate === "string" ? req.query.startDate : undefined;
+  const endDate = typeof req.query.endDate === "string" ? req.query.endDate : undefined;
+
+  const conditions = [eq(dailyGoalsTable.userId, user.id)];
+  if (startDate) {
+    conditions.push(gte(dailyGoalsTable.goalDate, startDate));
+  }
+  if (endDate) {
+    conditions.push(lte(dailyGoalsTable.goalDate, endDate));
+  }
+
+  const rawGoals = await db
+    .select({
+      id: dailyGoalsTable.id,
+      goalId: goalsTable.id,
+      name: goalsTable.name,
+      category: goalsTable.category,
+      targetValue: goalsTable.targetValue,
+      currentValue: goalProgressTable.currentValue,
+      unit: goalsTable.unit,
+      status: goalProgressTable.status,
+      priority: goalsTable.priority,
+      goalDate: dailyGoalsTable.goalDate,
+    })
+    .from(dailyGoalsTable)
+    .innerJoin(goalsTable, eq(goalsTable.id, dailyGoalsTable.goalId))
+    .innerJoin(goalProgressTable, eq(goalProgressTable.dailyGoalId, dailyGoalsTable.id))
+    .where(and(...conditions))
+    .orderBy(asc(dailyGoalsTable.goalDate), asc(goalsTable.priority));
+
+  const byDate: Record<string, ReturnType<typeof mapDailyGoal>[]> = {};
+  for (const g of rawGoals) {
+    if (!byDate[g.goalDate]) byDate[g.goalDate] = [];
+    byDate[g.goalDate].push(mapDailyGoal(g));
+  }
+
+  const history: Record<
+    string,
+    {
+      date: string;
+      dailyScore: number;
+      dailyCompletion: number;
+      completedCount: number;
+      totalCount: number;
+    }
+  > = {};
+
+  for (const [d, goalsForDay] of Object.entries(byDate)) {
+    const metrics = calculateMetrics(goalsForDay);
+    history[d] = {
+      date: d,
+      dailyScore: metrics.dailyScore,
+      dailyCompletion: metrics.dailyCompletion,
+      completedCount: metrics.completedCount,
+      totalCount: metrics.totalCount,
+    };
+  }
+
+  res.json({ history });
 });
 
 router.patch("/today/goals/:id/progress", async (req, res): Promise<void> => {

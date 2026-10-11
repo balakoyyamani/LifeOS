@@ -74,6 +74,7 @@ import {
   checkAndAwardShield,
   getStreakTier,
 } from '@/lib/shields';
+import { syncTodayRecord } from '@/lib/history';
 import {
   SCHEDULE_PRESETS,
   formatTime12h,
@@ -1421,6 +1422,30 @@ export default function Today() {
       }
     }
   }, [dailyScore, todayDateKey, toast]);
+
+  // Keep authentic daily history synchronized for today
+  useEffect(() => {
+    if (todayDateKey) {
+      const completedCount =
+        dashboard?.completedCount ??
+        goals.filter((g) => g.status === 'completed' || g.percent >= 100).length;
+      const totalCount = dashboard?.totalCount ?? goals.length;
+      const focusMins = dashboard?.focusMinutes ?? 0;
+      syncTodayRecord({
+        score: dailyScore,
+        completedCount,
+        totalCount,
+        focusMinutes: focusMins,
+      });
+    }
+  }, [
+    dailyScore,
+    todayDateKey,
+    dashboard?.completedCount,
+    dashboard?.totalCount,
+    dashboard?.focusMinutes,
+    goals,
+  ]);
 
   const handleSaveNote = () => {
     setAnchorNote(noteInput);

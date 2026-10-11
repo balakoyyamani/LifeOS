@@ -33,6 +33,7 @@ import { type UserStatsSnapshot, evaluateBadges } from '@/lib/badges';
 import { ENERGY_LEVELS, getAllReflections } from '@/lib/reflections';
 import { getWeekDetails, getWeeklyObjectives } from '@/lib/weekly';
 import { getShieldVaultState, getStreakTier } from '@/lib/shields';
+import { getDailyHistoryRecord } from '@/lib/history';
 import { cn } from '@/lib/utils';
 
 interface DayActivity {
@@ -43,6 +44,7 @@ interface DayActivity {
   completedCount: number;
   totalCount: number;
   focusMinutes: number;
+  isShielded?: boolean;
   isToday: boolean;
 }
 
@@ -149,53 +151,55 @@ export default function Analytics() {
       const d = new Date(now);
       d.setDate(d.getDate() - i);
       const isToday = i === 0;
-
-      // Realistic historical simulation anchored by actual today data & streak
+      const dateKey = d.toISOString().slice(0, 10);
       const dayOfWeek = d.getDay();
+
       let dayScore = 0;
       let dayCompleted = 0;
+      let dayTotal = Math.max(1, goals.length || 1);
       let dayFocus = 0;
+      let isShielded = false;
 
       if (isToday) {
         dayScore = todayScore;
         dayCompleted = dashboard?.completedCount ?? today?.goals.filter((g) => g.status === 'completed').length ?? 0;
+        dayTotal = dashboard?.totalCount ?? today?.goals.length ?? Math.max(1, goals.length || 1);
         dayFocus = focusMinutes;
-      } else if (i <= streak && streak > 0) {
-        // Active streak days get consistent high scores
-        const seed = (d.getDate() * 17) % 25;
-        dayScore = Math.min(100, 75 + seed);
-        dayCompleted = Math.max(2, Math.floor((goals.length || 4) * 0.8));
-        dayFocus = 45 + ((d.getDate() * 7) % 60);
+        isShielded = Boolean(shieldVault.deployedShields[dateKey]);
       } else {
-        // Older days with natural variance
-        const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-        const seed = (d.getDate() * 13) % 40;
-        dayScore = isWeekend ? Math.max(30, 60 - seed) : Math.min(95, 60 + seed);
-        dayCompleted = Math.floor((goals.length || 4) * (dayScore / 100));
-        dayFocus = isWeekend ? 20 : 35 + seed;
+        // Genuine recorded history. Days without activity (like yesterday if nothing was done) accurately yield 0.
+        const record = getDailyHistoryRecord(dateKey);
+        dayScore = record.score;
+        dayCompleted = record.completedCount;
+        dayTotal = record.totalCount > 0 ? record.totalCount : Math.max(1, goals.length || 1);
+        dayFocus = record.focusMinutes;
+        isShielded = record.isShielded ?? false;
       }
 
       days.push({
-        date: d.toISOString().slice(0, 10),
+        date: dateKey,
         dayLabel: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
         dayOfWeek,
         score: Math.round(dayScore),
         completedCount: dayCompleted,
-        totalCount: Math.max(1, goals.length || 4),
+        totalCount: dayTotal,
         focusMinutes: dayFocus,
+        isShielded,
         isToday,
       });
     }
     return days;
-  }, [streak, todayScore, focusMinutes, dashboard, today, goals]);
+  }, [todayScore, focusMinutes, dashboard, today, goals, shieldVault.deployedShields]);
 
-  // Aggregate monthly stats
-  const averageScore = Math.round(
-    activityData.reduce((acc, d) => acc + d.score, 0) / activityData.length,
-  );
+  // Aggregate monthly stats based on authentic recorded days
+  const activeRecordedDays = activityData.filter((d) => d.score > 0 || d.focusMinutes > 0 || d.isShielded);
+  const averageScore =
+    activeRecordedDays.length > 0
+      ? Math.round(activeRecordedDays.reduce((acc, d) => acc + d.score, 0) / activeRecordedDays.length)
+      : 0;
   const totalFocusHours = Math.round((activityData.reduce((acc, d) => acc + d.focusMinutes, 0) / 60) * 10) / 10;
   const bestDay = useMemo(() => {
-    return activityData.reduce((max, d) => (d.score > max.score ? d : max), activityData[0]);
+    return activityData.reduce((max, d) => (d.score > max.score ? d : max), activityData[activityData.length - 1]);
   }, [activityData]);
 
   // Day-of-week average rhythm (0 = Sun, 1 = Mon ... 6 = Sat)
@@ -205,8 +209,10 @@ export default function Analytics() {
     const counts = Array(7).fill(0);
 
     activityData.forEach((d) => {
-      sums[d.dayOfWeek] += d.score;
-      counts[d.dayOfWeek] += 1;
+      if (d.score > 0) {
+        sums[d.dayOfWeek] += d.score;
+        counts[d.dayOfWeek] += 1;
+      }
     });
 
     return dayNames.map((name, idx) => ({
@@ -273,7 +279,9 @@ export default function Analytics() {
               <span className="text-sm font-bold text-muted-foreground">/ 100 score</span>
             </div>
             <div className="mt-4 border-t border-border/60 pt-3 text-[11px] font-semibold text-muted-foreground">
-              Across 35 days of recorded rhythms
+              {activeRecordedDays.length > 0
+                ? `Across ${activeRecordedDays.length} active recorded ${activeRecordedDays.length === 1 ? 'day' : 'days'}`
+                : 'No active rhythms recorded yet'}
             </div>
           </div>
 
@@ -300,10 +308,12 @@ export default function Analytics() {
             </div>
             <div className="mt-3 flex items-baseline gap-2">
               <span className="font-mono text-3xl font-black text-sidebar">{bestDay.score}</span>
-              <span className="text-sm font-bold text-muted-foreground">pts · {bestDay.dayLabel}</span>
+              <span className="text-sm font-bold text-muted-foreground">
+                pts · {bestDay.score > 0 ? bestDay.dayLabel : 'No peak yet'}
+              </span>
             </div>
             <div className="mt-4 border-t border-border/60 pt-3 text-[11px] font-semibold text-muted-foreground">
-              Highest scoring day on record
+              {bestDay.score > 0 ? 'Highest scoring day on record' : 'Complete goals to set your first peak'}
             </div>
           </div>
         </div>
@@ -342,7 +352,9 @@ export default function Analytics() {
               {activityData.map((day) => {
                 const intensityClass =
                   day.score === 0
-                    ? 'border border-border/60 bg-muted/30 text-muted-foreground/40'
+                    ? day.isShielded
+                      ? 'border border-accent/40 bg-accent/20 text-accent font-semibold'
+                      : 'border border-border/60 bg-muted/30 text-muted-foreground/40'
                     : day.score < 50
                       ? 'border border-primary/20 bg-primary/20 text-sidebar font-semibold'
                       : day.score < 75
@@ -379,6 +391,11 @@ export default function Analytics() {
                 {hoveredDay.isToday && (
                   <span className="rounded-full bg-accent/20 px-2 py-0.5 text-[10px] font-bold text-accent-foreground">
                     Today
+                  </span>
+                )}
+                {hoveredDay.isShielded && (
+                  <span className="rounded-full bg-accent/20 px-2 py-0.5 text-[10px] font-bold text-accent-foreground">
+                    Shielded 🛡️
                   </span>
                 )}
                 <span className="text-muted-foreground">· Daily Score:</span>
@@ -452,7 +469,7 @@ export default function Analytics() {
                 const meta = categoryMeta[catKey];
                 const Icon = meta.icon;
                 const match = contributions.find((c) => c.category === catKey);
-                const completion = match ? Math.round(match.completion) : 80;
+                const completion = match ? Math.round(match.completion) : 0;
 
                 return (
                   <div
