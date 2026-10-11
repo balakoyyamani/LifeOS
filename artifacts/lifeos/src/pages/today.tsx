@@ -2170,14 +2170,25 @@ export default function Today() {
                         </p>
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedDate(null)}
-                      className="focus-ring shrink-0 inline-flex items-center gap-1.5 self-end sm:self-auto rounded-full bg-sidebar px-4 py-2 text-xs font-extrabold text-sidebar-foreground shadow-xs hover:bg-sidebar/90 transition-all active:scale-95"
-                    >
-                      <span>Return to Today</span>
-                      <ArrowRight className="size-3.5 text-accent" />
-                    </button>
+                    <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => setShowEveningReflection(true)}
+                        className="focus-ring inline-flex items-center gap-1.5 rounded-full border border-primary/40 bg-card px-3.5 py-2 text-xs font-bold text-foreground shadow-2xs hover:bg-muted transition-all active:scale-95"
+                        title="View yesterday's evening reflection & wins"
+                      >
+                        <Moon className="size-3.5 text-primary" />
+                        <span>View Reflection</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedDate(null)}
+                        className="focus-ring inline-flex items-center gap-1.5 rounded-full bg-sidebar px-4 py-2 text-xs font-extrabold text-sidebar-foreground shadow-xs hover:bg-sidebar/90 transition-all active:scale-95"
+                      >
+                        <span>Return to Today</span>
+                        <ArrowRight className="size-3.5 text-accent" />
+                      </button>
+                    </div>
                   </div>
                 )}
 

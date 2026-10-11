@@ -247,7 +247,20 @@ export default function Analytics() {
               Review your execution momentum, pillar balance, and streak protection history.
             </p>
           </div>
-          <ProfileChip onOpenTrophies={() => setShowHallOfFame(true)} />
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+            <button
+              type="button"
+              onClick={() => {
+                document.getElementById('evening-reflections-archive')?.scrollIntoView({ behavior: 'smooth' });
+              }}
+              className="focus-ring inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3.5 py-2 text-xs font-extrabold text-foreground shadow-2xs hover:border-primary/50 hover:bg-muted active:scale-95 transition-all"
+              title="Jump directly to Evening Reflections & Wins archive"
+            >
+              <Moon className="size-3.5 text-primary" />
+              <span>Reflections Archive ({reflections.length})</span>
+            </button>
+            <ProfileChip onOpenTrophies={() => setShowHallOfFame(true)} />
+          </div>
         </div>
 
         {/* Top Summary Metric Cards */}
@@ -576,7 +589,7 @@ export default function Analytics() {
         </section>
 
         {/* Evening Reflections & Mindset Archive */}
-        <section className="mt-8 rounded-[28px] border border-border/80 bg-card p-6 shadow-xs sm:p-8">
+        <section id="evening-reflections-archive" className="mt-8 rounded-[28px] border border-border/80 bg-card p-6 shadow-xs sm:p-8 scroll-mt-6">
           <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
             <div className="flex items-center gap-2.5">
               <div className="grid size-9 place-items-center rounded-2xl bg-primary/10 text-primary">

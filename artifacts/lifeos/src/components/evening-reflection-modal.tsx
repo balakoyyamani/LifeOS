@@ -1,9 +1,12 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   BatteryCharging,
+  BookOpen,
+  Calendar,
   Check,
   CheckCircle2,
   Copy,
+  Edit3,
   Heart,
   Moon,
   Sparkles,
@@ -18,6 +21,7 @@ import {
   type DailyReflection,
   ENERGY_LEVELS,
   SUGGESTED_MOODS,
+  getAllReflections,
   getReflectionForDate,
   getTodayDateKey,
   saveReflection,
@@ -32,6 +36,7 @@ interface EveningReflectionModalProps {
   dailyScore?: number;
   streak?: number;
   dateKey?: string;
+  initialTab?: 'reflect' | 'history';
 }
 
 export function EveningReflectionModal({
@@ -40,11 +45,13 @@ export function EveningReflectionModal({
   dailyScore = 0,
   streak = 0,
   dateKey: customDateKey,
+  initialTab = 'reflect',
 }: EveningReflectionModalProps) {
   const { toast } = useToast();
-  const dateKey = customDateKey || getTodayDateKey();
+  const [dateKey, setDateKey] = useState<string>(customDateKey || getTodayDateKey());
   const existing = getReflectionForDate(dateKey);
 
+  const [activeTab, setActiveTab] = useState<'reflect' | 'history'>(initialTab);
   const [energyLevel, setEnergyLevel] = useState<number>(existing?.energyLevel ?? 3);
   const [selectedMoods, setSelectedMoods] = useState<string[]>(
     existing?.moodTags ?? ['Peaceful 🌿'],
@@ -57,6 +64,8 @@ export function EveningReflectionModal({
 
   const [isCompleted, setIsCompleted] = useState(false);
   const [soundMuted, setSoundMuted] = useState(!sound.isEnabled());
+
+  const allReflections = useMemo(() => getAllReflections(), [isCompleted]);
 
   const toggleSound = () => {
     const next = !sound.isEnabled();
@@ -94,7 +103,7 @@ export function EveningReflectionModal({
 
     toast({
       title: 'Day closed with intention 🌙',
-      description: 'Your evening reflection is saved to your personal history.',
+      description: `Your reflection for ${dateKey} is saved to your personal history.`,
     });
   };
 
@@ -122,6 +131,43 @@ ${gratitude || 'Grateful for another day of learning and growth.'}
       title: 'Copied to clipboard',
       description: 'Daily reflection markdown copied.',
     });
+  };
+
+  const handleCopySingleReflection = (r: DailyReflection) => {
+    const energyObj = ENERGY_LEVELS.find((e) => e.level === r.energyLevel);
+    const md = `### 🌙 LifeOS Daily Reflection — ${r.date}
+- **Energy**: ${energyObj?.icon} ${energyObj?.label} (${r.energyLevel}/5)
+- **Mood**: ${r.moodTags?.join(', ') || 'None'}
+
+#### 🏆 3 Daily Wins
+${r.wins?.filter(Boolean).map((w, i) => `${i + 1}. ${w}`).join('\n') || 'None'}
+
+#### 💡 Lesson / Friction
+${r.lesson || 'None'}
+
+#### 🙏 Gratitude
+${r.gratitude || 'None'}
+`;
+    void navigator.clipboard.writeText(md);
+    sound.playClick();
+    toast({
+      title: 'Copied to clipboard',
+      description: `Reflection for ${r.date} copied.`,
+    });
+  };
+
+  const handleEditPastReflection = (r: DailyReflection) => {
+    sound.playClick();
+    setDateKey(r.date);
+    setEnergyLevel(r.energyLevel);
+    setSelectedMoods(r.moodTags || []);
+    setWin1(r.wins?.[0] || '');
+    setWin2(r.wins?.[1] || '');
+    setWin3(r.wins?.[2] || '');
+    setLesson(r.lesson || '');
+    setGratitude(r.gratitude || '');
+    setIsCompleted(false);
+    setActiveTab('reflect');
   };
 
   return (
@@ -166,18 +212,159 @@ ${gratitude || 'Grateful for another day of learning and growth.'}
           </div>
         </div>
 
-        {!isCompleted ? (
-          <div className="mt-6 space-y-6">
-            {/* Philosophical Prompt */}
-            <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4 text-xs font-medium text-sidebar">
-              <span className="font-bold text-primary">Mindset: </span>
-              Release what wasn't finished. Honor the honest steps you took today.
-            </div>
+        {/* Tab Switcher: Reflect vs Past Reflections Archive */}
+        <div className="mt-4 flex items-center justify-between border-b border-border/60 pb-3">
+          <div className="inline-flex items-center gap-1 rounded-xl border border-border/80 bg-muted/40 p-1 text-xs font-bold">
+            <button
+              type="button"
+              onClick={() => setActiveTab('reflect')}
+              className={cn(
+                'rounded-lg px-3 py-1.5 transition-all',
+                activeTab === 'reflect'
+                  ? 'bg-card text-foreground shadow-xs'
+                  : 'text-muted-foreground hover:text-foreground',
+              )}
+            >
+              <span>{dateKey === getTodayDateKey() ? "Daily Closing" : `Reflect (${dateKey})`}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('history')}
+              className={cn(
+                'rounded-lg px-3 py-1.5 transition-all',
+                activeTab === 'history'
+                  ? 'bg-card text-foreground shadow-xs'
+                  : 'text-muted-foreground hover:text-foreground',
+              )}
+            >
+              <span>Past Reflections Archive ({allReflections.length})</span>
+            </button>
+          </div>
+          <div className="text-[11px] text-muted-foreground font-semibold hidden sm:inline">
+            {activeTab === 'history' ? 'Personal History of Wins & Mindset' : 'Close your day intentionally'}
+          </div>
+        </div>
 
-            {/* Energy Level Selector */}
-            <div className="space-y-2.5">
-              <div className="flex items-center justify-between text-xs">
-                <span className="mono-label text-muted-foreground">Evening Energy State</span>
+        {activeTab === 'history' ? (
+          /* Past Reflections History Archive Tab View */
+          <div className="mt-5 space-y-4">
+            {allReflections.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-border p-8 text-center">
+                <Moon className="mx-auto mb-2 size-6 text-muted-foreground/60" />
+                <div className="text-sm font-bold text-sidebar">No Past Reflections Recorded Yet</div>
+                <p className="mt-1 text-xs text-muted-foreground max-w-sm mx-auto">
+                  Complete your first evening closing in the "Daily Closing" tab to archive your wins and mindset notes.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {allReflections.map((r) => {
+                  const energy = ENERGY_LEVELS.find((e) => e.level === r.energyLevel);
+                  const isCurrentTarget = r.date === dateKey;
+                  return (
+                    <div
+                      key={r.date}
+                      className={cn(
+                        'rounded-2xl border p-4 transition-all',
+                        isCurrentTarget
+                          ? 'border-primary/40 bg-primary/[0.04]'
+                          : 'border-border/80 bg-muted/20 hover:border-primary/30 hover:bg-muted/30',
+                      )}
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/60 pb-2.5">
+                        <div className="flex items-center gap-2">
+                          <span className="font-extrabold text-sidebar text-sm">{r.date}</span>
+                          <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-bold text-primary">
+                            {energy?.icon} {energy?.label}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleCopySingleReflection(r)}
+                            className="focus-ring inline-flex items-center gap-1 rounded-full border border-border bg-card px-2.5 py-1 text-[11px] font-semibold text-muted-foreground hover:bg-muted"
+                            title="Copy reflection markdown"
+                          >
+                            <Copy className="size-3" />
+                            <span>Copy</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleEditPastReflection(r)}
+                            className="focus-ring inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-2.5 py-1 text-[11px] font-bold text-primary hover:bg-primary/20"
+                            title="Edit or view full reflection"
+                          >
+                            <Edit3 className="size-3" />
+                            <span>Edit</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Mood Tags */}
+                      {r.moodTags?.length > 0 && (
+                        <div className="mt-2.5 flex flex-wrap gap-1">
+                          {r.moodTags.map((tag) => (
+                            <span
+                              key={tag}
+                              className="rounded-full bg-card px-2 py-0.5 text-[10px] font-semibold text-muted-foreground border border-border/60"
+                            >
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* 3 Wins */}
+                      {r.wins?.some(Boolean) && (
+                        <div className="mt-3">
+                          <span className="mono-label text-muted-foreground text-[10px]">3 Wins</span>
+                          <ul className="mt-1 space-y-1 text-xs font-medium text-foreground">
+                            {r.wins.filter(Boolean).map((win, i) => (
+                              <li key={i} className="flex items-start gap-1.5">
+                                <span className="text-primary font-black">✓</span>
+                                <span>{win}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      {/* Lesson */}
+                      {r.lesson && (
+                        <div className="mt-2.5 text-xs">
+                          <span className="mono-label text-muted-foreground text-[10px]">Lesson</span>
+                          <p className="mt-0.5 italic text-muted-foreground">"{r.lesson}"</p>
+                        </div>
+                      )}
+
+                      {/* Gratitude */}
+                      {r.gratitude && (
+                        <div className="mt-2.5 border-t border-border/60 pt-2 text-[11px] text-muted-foreground flex items-center gap-1.5">
+                          <Heart className="size-3 text-rose-500 shrink-0" />
+                          <span className="italic">"{r.gratitude}"</span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        ) : (
+          /* Active Reflection Form */
+          <div>
+            {!isCompleted ? (
+              <div className="mt-6 space-y-6">
+                {/* Philosophical Prompt */}
+                <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4 text-xs font-medium text-sidebar">
+                  <span className="font-bold text-primary">Mindset: </span>
+                  Release what wasn't finished. Honor the honest steps you took today.
+                </div>
+
+                {/* Energy Level Selector */}
+                <div className="space-y-2.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="mono-label text-muted-foreground">Evening Energy State</span>
                 <span className="font-bold text-primary">
                   {ENERGY_LEVELS.find((e) => e.level === energyLevel)?.label}
                 </span>
@@ -393,7 +580,9 @@ ${gratitude || 'Grateful for another day of learning and growth.'}
           </div>
         )}
       </div>
-    </div>
+      )}
+        </div>
+      </div>
     </ModalPortal>
   );
 }
