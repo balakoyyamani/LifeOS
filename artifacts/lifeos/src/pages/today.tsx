@@ -1361,12 +1361,10 @@ export default function Today() {
     return day === 0 || day === 6;
   }, [today?.date, dashboard?.date]);
 
-  const restingWeekdayGoals = useMemo(() => {
+  const weekdayGoals = useMemo(() => {
     if (!isWeekend) return [];
-    return allGoals.filter(
-      (g) => g.active && g.frequency === 'weekdays' && !goals.some((dg) => dg.goalId === g.id),
-    );
-  }, [isWeekend, allGoals, goals]);
+    return allGoals.filter((g) => g.active && g.frequency === 'weekdays');
+  }, [isWeekend, allGoals]);
 
   const handleRefreshAll = async () => {
     await Promise.all([
@@ -2078,7 +2076,8 @@ export default function Today() {
                 {/* Weekend Deload & Resting Weekday Goals Card */}
                 {isWeekend && (
                   <WeekendOptInCard
-                    restingGoals={restingWeekdayGoals}
+                    weekdayGoals={weekdayGoals}
+                    restingGoals={weekdayGoals}
                     activeTodayGoals={goals}
                     onRefresh={handleRefreshAll}
                     categoryStyles={categoryStyles}

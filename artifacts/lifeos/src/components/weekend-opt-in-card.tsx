@@ -15,7 +15,8 @@ import { sound } from '@/lib/sound';
 import { useToast } from '@/hooks/use-toast';
 
 interface WeekendOptInCardProps {
-  restingGoals: Goal[];
+  weekdayGoals?: Goal[];
+  restingGoals?: Goal[];
   activeTodayGoals: DailyGoal[];
   onRefresh: () => Promise<void> | void;
   categoryStyles: Record<
@@ -25,6 +26,7 @@ interface WeekendOptInCardProps {
 }
 
 export function WeekendOptInCard({
+  weekdayGoals,
   restingGoals,
   activeTodayGoals,
   onRefresh,
@@ -34,7 +36,9 @@ export function WeekendOptInCard({
   const [isExpanded, setIsExpanded] = useState(true);
   const [loadingGoalId, setLoadingGoalId] = useState<number | null>(null);
 
-  if (restingGoals.length === 0 && activeTodayGoals.length === 0) {
+  const goalsList = weekdayGoals ?? restingGoals ?? [];
+
+  if (goalsList.length === 0) {
     return null;
   }
 
@@ -80,7 +84,12 @@ export function WeekendOptInCard({
     }
   };
 
-  const isRestingAll = activeTodayGoals.length === 0;
+  const activeWeekdayGoals = goalsList.filter((g) =>
+    activeTodayGoals.some((ag) => ag.goalId === g.id),
+  );
+  const activeCount = activeWeekdayGoals.length;
+  const restingCount = goalsList.length - activeCount;
+  const isRestingAll = activeCount === 0;
 
   return (
     <div className="mb-6 overflow-hidden rounded-[26px] border border-border/80 bg-gradient-to-br from-card via-card to-primary/[0.03] p-5 shadow-xs transition-all sm:p-6">
@@ -110,32 +119,36 @@ export function WeekendOptInCard({
           </div>
         </div>
 
-        {restingGoals.length > 0 && (
+        {goalsList.length > 0 && (
           <button
             type="button"
             onClick={() => setIsExpanded(!isExpanded)}
             className="focus-ring self-end sm:self-center inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3.5 py-1.5 text-xs font-bold text-muted-foreground hover:bg-muted"
           >
-            <span>{isExpanded ? 'Hide' : 'Browse'} Resting Habits ({restingGoals.length})</span>
+            <span>
+              {isExpanded ? 'Hide' : 'Manage'} Weekday Habits ({activeCount > 0 ? `${activeCount} active · ${restingCount} resting` : `${restingCount} resting`})
+            </span>
             {isExpanded ? <ChevronUp className="size-3.5" /> : <ChevronDown className="size-3.5" />}
           </button>
         )}
       </div>
 
-      {/* Expandable Resting Goals List */}
-      {isExpanded && restingGoals.length > 0 && (
+      {/* Expandable Goals List */}
+      {isExpanded && goalsList.length > 0 && (
         <div className="mt-4 pt-4 border-t border-border/60">
           <div className="mb-2.5 flex items-center justify-between text-xs">
             <span className="mono-label text-muted-foreground">
               Single-Day Opt-In (Mon–Fri Cadence)
             </span>
             <span className="text-[11px] text-muted-foreground">
-              Turns on for today only
+              {activeCount > 0
+                ? `${activeCount} active on runway · turns off tomorrow`
+                : 'Turns on for today only'}
             </span>
           </div>
 
           <div className="grid gap-2 sm:grid-cols-2">
-            {restingGoals.map((goal) => {
+            {goalsList.map((goal) => {
               const activeInstance = activeTodayGoals.find((g) => g.goalId === goal.id);
               const isActiveToday = Boolean(activeInstance);
               const style = categoryStyles[goal.category] ?? categoryStyles.career;
@@ -175,12 +188,12 @@ export function WeekendOptInCard({
                     className={cn(
                       'focus-ring shrink-0 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold transition-all active:scale-95 disabled:opacity-50',
                       isActiveToday
-                        ? 'border border-primary/40 bg-primary/10 text-primary hover:bg-primary/20'
+                        ? 'border border-primary/40 bg-primary/10 text-primary hover:bg-destructive/10 hover:border-destructive/40 hover:text-destructive group/opt'
                         : 'border border-border bg-card text-foreground hover:border-primary hover:bg-primary/10 hover:text-primary',
                     )}
                     title={
                       isActiveToday
-                        ? 'Deactivate for today'
+                        ? 'Active for today. Click to return to resting state.'
                         : 'Activate for today only (will automatically disable tomorrow)'
                     }
                   >
@@ -188,8 +201,10 @@ export function WeekendOptInCard({
                       <RotateCcw className="size-3 animate-spin" />
                     ) : isActiveToday ? (
                       <>
-                        <Check className="size-3 text-primary stroke-[3]" />
-                        <span>Active Today</span>
+                        <Check className="size-3 text-primary stroke-[3] group-hover/opt:hidden" />
+                        <span className="group-hover/opt:hidden">Active Today</span>
+                        <RotateCcw className="size-3 hidden group-hover/opt:inline" />
+                        <span className="hidden group-hover/opt:inline">Rest Today</span>
                       </>
                     ) : (
                       <>
