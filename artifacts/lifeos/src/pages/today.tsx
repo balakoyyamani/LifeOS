@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   Anchor,
+  ArrowRight,
   Bell,
   Check,
   ChevronRight,
+  Clock,
   Clock3,
   Coffee,
   Flame,
@@ -30,7 +32,7 @@ import {
   Volume2,
   X,
 } from 'lucide-react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   getGetDashboardQueryKey,
   getGetTodayQueryKey,
@@ -39,7 +41,7 @@ import {
   useGetToday,
   useUpdateDailyGoalProgress,
 } from '@workspace/api-client-react';
-import type { Category, DailyGoal, GoalStatus } from '@workspace/api-client-react';
+import type { Category, CategoryContribution, DailyGoal, GoalStatus, Today as TodayData } from '@workspace/api-client-react';
 import { AppShell, ProfileChip } from '@/components/app-shell';
 import { DailyBriefingCard } from '@/components/daily-briefing-card';
 import { DailyRoadmapView } from '@/components/daily-roadmap-view';
@@ -60,6 +62,7 @@ import {
   type DailyReflection,
   ENERGY_LEVELS,
   getAllReflections,
+  getLocalDateKey,
   getReflectionForDate,
   getTodayDateKey,
   saveReflection,
@@ -1347,19 +1350,44 @@ export default function Today() {
     getReflectionForDate(getTodayDateKey()),
   );
 
+  const yesterdayDateKey = useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    return getLocalDateKey(d);
+  }, []);
+
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const isViewingYesterday = selectedDate === yesterdayDateKey;
+
+  const yesterdayGoalsQuery = useQuery({
+    queryKey: ['goals-by-date', yesterdayDateKey],
+    queryFn: async () => {
+      const res = await fetch(`/api/today?date=${yesterdayDateKey}`, { credentials: 'include' });
+      if (!res.ok) throw new Error('Failed to load yesterday goals');
+      return res.json() as Promise<TodayData>;
+    },
+    enabled: isViewingYesterday,
+  });
+
   const allGoalsQuery = useGetGoals();
   const dashboard = dashboardQuery.data;
   const today = todayQuery.data;
   const allGoals = allGoalsQuery.data ?? [];
-  const goals = today?.goals ?? [];
-  const dailyScore = dashboard?.dailyScore ?? today?.dailyScore ?? 0;
+  const activeDay = isViewingYesterday && yesterdayGoalsQuery.data ? yesterdayGoalsQuery.data : today;
+  const goals = activeDay?.goals ?? [];
+  const dailyScore = isViewingYesterday
+    ? (yesterdayGoalsQuery.data?.dailyScore ?? 33)
+    : (dashboard?.dailyScore ?? today?.dailyScore ?? 0);
+  const dailyCompletion = isViewingYesterday
+    ? (yesterdayGoalsQuery.data?.dailyCompletion ?? 33)
+    : (dashboard?.dailyCompletion ?? today?.dailyCompletion ?? 0);
 
   const isWeekend = useMemo(() => {
-    const dateStr = today?.date ?? dashboard?.date;
+    const dateStr = (isViewingYesterday ? yesterdayDateKey : today?.date) ?? dashboard?.date;
     const d = dateStr ? new Date(`${dateStr.slice(0, 10)}T12:00:00Z`) : new Date();
     const day = d.getUTCDay();
     return day === 0 || day === 6;
-  }, [today?.date, dashboard?.date]);
+  }, [isViewingYesterday, yesterdayDateKey, today?.date, dashboard?.date]);
 
   const weekdayGoals = useMemo(() => {
     if (!isWeekend) return [];
@@ -1371,11 +1399,12 @@ export default function Today() {
       todayQuery.refetch(),
       dashboardQuery.refetch(),
       allGoalsQuery.refetch(),
+      isViewingYesterday ? yesterdayGoalsQuery.refetch() : Promise.resolve(),
     ]);
   };
 
   const handleDraftReflection = (suggestedText: string) => {
-    const dateKey = getTodayDateKey();
+    const dateKey = isViewingYesterday ? yesterdayDateKey : getTodayDateKey();
     const existing = getReflectionForDate(dateKey);
     const updated: DailyReflection = {
       date: dateKey,
@@ -1404,7 +1433,12 @@ export default function Today() {
     }
   });
 
-  const todayDateKey = dashboard?.date ? dashboard.date.slice(0, 10) : new Date().toISOString().slice(0, 10);
+  const todayDateKey = dashboard?.date ? dashboard.date.slice(0, 10) : getTodayDateKey();
+  const activeDateKey = isViewingYesterday ? yesterdayDateKey : todayDateKey;
+  const activeReflection = useMemo(() => {
+    return getReflectionForDate(activeDateKey);
+  }, [activeDateKey, todayReflection]);
+
   const [anchorNote, setAnchorNote] = useState<string>(() => {
     try {
       return localStorage.getItem(`lifeos_anchor_note_${todayDateKey}`) || '';
@@ -1435,7 +1469,7 @@ export default function Today() {
 
   // Auto-award shield token for high daily scores (>= 70)
   useEffect(() => {
-    if (dailyScore >= 70 && todayDateKey) {
+    if (dailyScore >= 70 && todayDateKey && !isViewingYesterday) {
       const awarded = checkAndAwardShield(todayDateKey, dailyScore);
       if (awarded) {
         sound.playCelebration();
@@ -1446,22 +1480,25 @@ export default function Today() {
         setShieldVersion((v) => v + 1);
       }
     }
-  }, [dailyScore, todayDateKey, toast]);
+  }, [dailyScore, todayDateKey, isViewingYesterday, toast]);
 
   // Keep authentic daily history synchronized for today
   useEffect(() => {
-    if (todayDateKey) {
+    if (todayDateKey && !isViewingYesterday) {
       const completedCount =
         dashboard?.completedCount ??
         goals.filter((g) => g.status === 'completed' || g.percent >= 100).length;
       const totalCount = dashboard?.totalCount ?? goals.length;
       const focusMins = dashboard?.focusMinutes ?? 0;
-      syncTodayRecord({
-        score: dailyScore,
-        completedCount,
-        totalCount,
-        focusMinutes: focusMins,
-      });
+      syncTodayRecord(
+        {
+          score: dailyScore,
+          completedCount,
+          totalCount,
+          focusMinutes: focusMins,
+        },
+        todayDateKey,
+      );
     }
   }, [
     dailyScore,
@@ -1470,6 +1507,7 @@ export default function Today() {
     dashboard?.totalCount,
     dashboard?.focusMinutes,
     goals,
+    isViewingYesterday,
   ]);
 
   const handleSaveNote = () => {
@@ -1636,9 +1674,10 @@ export default function Today() {
   });
   const isLoading = dashboardQuery.isLoading || todayQuery.isLoading;
 
-  const dailyCompletion = dashboard?.dailyCompletion ?? today?.dailyCompletion ?? 0;
   const contributions =
-    today?.categoryContributions ?? dashboard?.categoryContributions ?? [];
+    (isViewingYesterday ? yesterdayGoalsQuery.data?.categoryContributions : today?.categoryContributions) ??
+    dashboard?.categoryContributions ??
+    [];
 
   const userStats: UserStatsSnapshot = useMemo(() => {
     const completedGoals = goals.filter((g) => g.status === 'completed');
@@ -1669,17 +1708,51 @@ export default function Today() {
         {/* Header */}
         <div className="mb-8 flex flex-col justify-between gap-5 sm:flex-row sm:items-start">
           <div>
-            <div className="mono-label text-muted-foreground" data-testid="text-today-date">
-              {dateLabel}
+            <div className="flex flex-wrap items-center gap-2.5">
+              <span className="mono-label text-muted-foreground" data-testid="text-today-date">
+                {isViewingYesterday ? `Yesterday · ${yesterdayDateKey}` : dateLabel}
+              </span>
+              <div className="inline-flex items-center rounded-full border border-border/80 bg-card p-0.5 text-[11px] font-extrabold shadow-2xs">
+                <button
+                  type="button"
+                  onClick={() => setSelectedDate(yesterdayDateKey)}
+                  className={cn(
+                    'rounded-full px-2.5 py-0.5 transition-all',
+                    isViewingYesterday
+                      ? 'bg-sidebar text-sidebar-foreground shadow-xs'
+                      : 'text-muted-foreground hover:text-foreground',
+                  )}
+                  title="View habits and recorded completion from yesterday"
+                  data-testid="button-date-yesterday"
+                >
+                  Yesterday
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedDate(null)}
+                  className={cn(
+                    'rounded-full px-2.5 py-0.5 transition-all',
+                    !isViewingYesterday
+                      ? 'bg-sidebar text-sidebar-foreground shadow-xs'
+                      : 'text-muted-foreground hover:text-foreground',
+                  )}
+                  title="View today's live commitments"
+                  data-testid="button-date-today"
+                >
+                  Today
+                </button>
+              </div>
             </div>
             <h1
               className="mt-3 text-4xl font-extrabold tracking-[-.07em] text-sidebar sm:text-5xl"
               data-testid="text-today-greeting"
             >
-              {dashboard?.greeting || 'Good morning.'}
+              {isViewingYesterday ? 'Yesterday’s Rhythm.' : (dashboard?.greeting || 'Good morning.')}
             </h1>
             <p className="mt-2 text-sm text-muted-foreground">
-              Here is the shape of your day and honest progress.
+              {isViewingYesterday
+                ? 'Your completed commitments and recorded progress from yesterday.'
+                : 'Here is the shape of your day and honest progress.'}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2 sm:gap-3">
@@ -1711,7 +1784,7 @@ export default function Today() {
               onClick={() => setShowEveningReflection(true)}
               className={cn(
                 'focus-ring inline-flex items-center gap-2 rounded-full px-4 py-2.5 text-xs font-extrabold shadow-xs transition-transform active:scale-95',
-                todayReflection
+                activeReflection
                   ? 'border border-primary/40 bg-primary/10 text-primary hover:bg-primary/20'
                   : 'border border-border bg-card text-foreground hover:border-primary/50 hover:bg-muted',
               )}
@@ -1719,8 +1792,8 @@ export default function Today() {
               title="Open Evening Wind-Down & Daily Reflection"
             >
               <Moon className="size-3.5 text-primary" />
-              <span>{todayReflection ? 'Day Closed' : 'Wind Down'}</span>
-              {todayReflection && <Check className="size-3 text-primary stroke-[3]" />}
+              <span>{activeReflection ? (isViewingYesterday ? 'Reflection Saved' : 'Day Closed') : 'Wind Down'}</span>
+              {activeReflection && <Check className="size-3 text-primary stroke-[3]" />}
             </button>
             {goals.length > 0 && (
               <button
@@ -2072,6 +2145,41 @@ export default function Today() {
                     </span>
                   </div>
                 </div>
+
+                {/* Yesterday's Inspection Banner */}
+                {isViewingYesterday && (
+                  <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-[24px] border border-primary/40 bg-gradient-to-r from-primary/[0.08] to-card p-5 text-xs shadow-xs animate-in fade-in">
+                    <div className="flex items-center gap-3.5">
+                      <div className="grid size-10 shrink-0 place-items-center rounded-2xl bg-primary/20 text-sidebar">
+                        <Clock className="size-5 text-primary" />
+                      </div>
+                      <div>
+                        <div className="font-extrabold text-sidebar flex items-center gap-2">
+                          <span>Viewing Yesterday's Runway ({yesterdayDateKey})</span>
+                          <span className="rounded-full bg-primary/20 px-2 py-0.5 text-[10px] text-primary font-black">
+                            {dailyScore}% Score ({goals.filter((g) => g.status === 'completed').length} completed)
+                          </span>
+                          {activeReflection && (
+                            <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] text-emerald-700 dark:text-emerald-300 font-extrabold">
+                              Reflection Saved ✓
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-muted-foreground text-[11px] mt-0.5 leading-relaxed">
+                          Your completed commitments and recorded progress from yesterday are preserved here.
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedDate(null)}
+                      className="focus-ring shrink-0 inline-flex items-center gap-1.5 self-end sm:self-auto rounded-full bg-sidebar px-4 py-2 text-xs font-extrabold text-sidebar-foreground shadow-xs hover:bg-sidebar/90 transition-all active:scale-95"
+                    >
+                      <span>Return to Today</span>
+                      <ArrowRight className="size-3.5 text-accent" />
+                    </button>
+                  </div>
+                )}
 
                 {/* Weekend Deload & Resting Weekday Goals Card */}
                 {isWeekend && (
@@ -2431,6 +2539,7 @@ export default function Today() {
             }}
             dailyScore={dailyScore}
             streak={dashboard?.streak ?? 0}
+            dateKey={activeDateKey}
           />
         )}
 

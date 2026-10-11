@@ -1,4 +1,5 @@
 import type { Category } from '@workspace/api-client-react';
+import { getLocalDateKey } from './reflections';
 
 export interface WeeklyObjective {
   id: string;
@@ -56,13 +57,13 @@ export function getWeekDetails(date: Date): WeekRange {
   const { year, week } = getISOWeekNumber(monday);
   const weekKey = `${year}-W${String(week).padStart(2, '0')}`;
 
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = getLocalDateKey(new Date());
   const days = [];
 
   for (let i = 0; i < 7; i++) {
     const cur = new Date(monday);
     cur.setDate(monday.getDate() + i);
-    const dateStr = cur.toISOString().slice(0, 10);
+    const dateStr = getLocalDateKey(cur);
     days.push({
       date: cur,
       dateStr,

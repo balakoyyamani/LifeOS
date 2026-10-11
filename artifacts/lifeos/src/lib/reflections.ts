@@ -30,9 +30,15 @@ export const SUGGESTED_MOODS = [
   'Restorative 🧘',
 ];
 
+export function getLocalDateKey(d: Date = new Date()): string {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 export function getTodayDateKey(): string {
-  const d = new Date();
-  return d.toISOString().slice(0, 10);
+  return getLocalDateKey(new Date());
 }
 
 export function getReflectionForDate(dateStr: string): DailyReflection | null {

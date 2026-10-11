@@ -30,7 +30,7 @@ import { AppShell, ProfileChip } from '@/components/app-shell';
 import { HallOfFameModal } from '@/components/hall-of-fame-modal';
 import { ModalPortal } from '@/components/modal-portal';
 import { type UserStatsSnapshot, evaluateBadges } from '@/lib/badges';
-import { ENERGY_LEVELS, getAllReflections } from '@/lib/reflections';
+import { ENERGY_LEVELS, getAllReflections, getLocalDateKey } from '@/lib/reflections';
 import { getWeekDetails, getWeeklyObjectives } from '@/lib/weekly';
 import { getShieldVaultState, getStreakTier } from '@/lib/shields';
 import { getDailyHistoryRecord } from '@/lib/history';
@@ -152,7 +152,7 @@ export default function Analytics() {
       const d = new Date(now);
       d.setDate(d.getDate() - i);
       const isToday = i === 0;
-      const dateKey = d.toISOString().slice(0, 10);
+      const dateKey = getLocalDateKey(d);
       const dayOfWeek = d.getDay();
 
       let dayScore = 0;

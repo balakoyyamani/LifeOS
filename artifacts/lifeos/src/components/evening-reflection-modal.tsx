@@ -31,6 +31,7 @@ interface EveningReflectionModalProps {
   onSaved?: (reflection: DailyReflection) => void;
   dailyScore?: number;
   streak?: number;
+  dateKey?: string;
 }
 
 export function EveningReflectionModal({
@@ -38,9 +39,10 @@ export function EveningReflectionModal({
   onSaved,
   dailyScore = 0,
   streak = 0,
+  dateKey: customDateKey,
 }: EveningReflectionModalProps) {
   const { toast } = useToast();
-  const dateKey = getTodayDateKey();
+  const dateKey = customDateKey || getTodayDateKey();
   const existing = getReflectionForDate(dateKey);
 
   const [energyLevel, setEnergyLevel] = useState<number>(existing?.energyLevel ?? 3);

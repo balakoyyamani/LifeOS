@@ -24,9 +24,12 @@ import {
 const router: IRouter = Router();
 router.use(requireAuth);
 
-async function buildToday(userId: string) {
+async function buildToday(userId: string, targetDate?: string) {
   const user = await getOrCreateUser(userId);
-  const date = todayKey(user.timezone);
+  const date =
+    targetDate && /^\d{4}-\d{2}-\d{2}$/.test(targetDate)
+      ? targetDate
+      : todayKey(user.timezone);
   await ensureDailyGoals(user.id, date);
   const goals = (await listTodayGoals(user.id, date)).map(mapDailyGoal);
   const metrics = calculateMetrics(goals);
@@ -34,7 +37,8 @@ async function buildToday(userId: string) {
 }
 
 router.get("/today", async (req, res): Promise<void> => {
-  const { date, goals, metrics } = await buildToday(req.userId!);
+  const dateParam = typeof req.query.date === "string" ? req.query.date : undefined;
+  const { date, goals, metrics } = await buildToday(req.userId!, dateParam);
   res.json(
     GetTodayResponse.parse({
       date,
