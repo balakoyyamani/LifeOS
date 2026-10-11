@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { and, eq, gte, lte } from "drizzle-orm";
+import { and, asc, eq, gte, lte } from "drizzle-orm";
 import { db, dailyGoalsTable, goalProgressTable } from "@workspace/db";
 import { goalsTable } from "@workspace/db";
 import {
