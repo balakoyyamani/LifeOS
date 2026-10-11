@@ -16,6 +16,8 @@ import {
   getOrCreateUser,
   listTodayGoals,
   mapDailyGoal,
+  optInGoalForDate,
+  optOutGoalForDate,
   todayKey,
 } from "../lib/lifeos";
 
@@ -47,9 +49,14 @@ router.get("/today", async (req, res): Promise<void> => {
 router.get("/dashboard", async (req, res): Promise<void> => {
   const { date, goals, metrics } = await buildToday(req.userId!);
   const unfinished = goals.filter((goal) => goal.status !== "completed" && goal.status !== "skipped");
-  const highlights = unfinished.length
-    ? [`${unfinished.length} goal${unfinished.length === 1 ? "" : "s"} still in motion today`]
-    : ["Every goal is accounted for today"];
+  const weekday = new Date(`${date}T12:00:00Z`).getUTCDay();
+  const isWeekend = weekday === 0 || weekday === 6;
+  const highlights =
+    goals.length === 0 && isWeekend
+      ? ["Weekend Deload: Weekday habits resting today"]
+      : unfinished.length
+        ? [`${unfinished.length} goal${unfinished.length === 1 ? "" : "s"} still in motion today`]
+        : ["Every goal is accounted for today"];
   res.json(
     GetDashboardResponse.parse({
       date,
@@ -171,6 +178,40 @@ router.patch("/today/goals/:id/progress", async (req, res): Promise<void> => {
     return;
   }
   res.json(UpdateDailyGoalProgressResponse.parse(mapDailyGoal(result)));
+});
+
+router.post("/today/goals/:id/opt-in", async (req, res): Promise<void> => {
+  const goalId = Number(req.params.id);
+  if (isNaN(goalId)) {
+    res.status(400).json({ error: "Invalid goal ID" });
+    return;
+  }
+  const user = await getOrCreateUser(req.userId!);
+  const date = todayKey(user.timezone);
+  const resultId = await optInGoalForDate(user.id, goalId, date);
+  if (!resultId) {
+    res.status(404).json({ error: "Goal not found or inactive" });
+    return;
+  }
+  const todayGoals = (await listTodayGoals(user.id, date)).map(mapDailyGoal);
+  res.json({ success: true, dailyGoalId: resultId, goals: todayGoals });
+});
+
+router.delete("/today/goals/:id/opt-in", async (req, res): Promise<void> => {
+  const goalId = Number(req.params.id);
+  if (isNaN(goalId)) {
+    res.status(400).json({ error: "Invalid goal ID" });
+    return;
+  }
+  const user = await getOrCreateUser(req.userId!);
+  const date = todayKey(user.timezone);
+  const ok = await optOutGoalForDate(user.id, goalId, date);
+  if (!ok) {
+    res.status(404).json({ error: "Daily goal not found for today" });
+    return;
+  }
+  const todayGoals = (await listTodayGoals(user.id, date)).map(mapDailyGoal);
+  res.json({ success: true, goals: todayGoals });
 });
 
 export default router;

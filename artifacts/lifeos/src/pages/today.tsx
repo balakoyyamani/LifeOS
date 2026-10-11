@@ -5,6 +5,7 @@ import {
   Check,
   ChevronRight,
   Clock3,
+  Coffee,
   Flame,
   HelpCircle,
   LayoutGrid,
@@ -34,6 +35,7 @@ import {
   getGetDashboardQueryKey,
   getGetTodayQueryKey,
   useGetDashboard,
+  useGetGoals,
   useGetToday,
   useUpdateDailyGoalProgress,
 } from '@workspace/api-client-react';
@@ -41,6 +43,7 @@ import type { Category, DailyGoal, GoalStatus } from '@workspace/api-client-reac
 import { AppShell, ProfileChip } from '@/components/app-shell';
 import { DailyBriefingCard } from '@/components/daily-briefing-card';
 import { DailyRoadmapView } from '@/components/daily-roadmap-view';
+import { WeekendOptInCard } from '@/components/weekend-opt-in-card';
 import { EveningReflectionModal } from '@/components/evening-reflection-modal';
 import { HallOfFameModal } from '@/components/hall-of-fame-modal';
 import { RapidReviewModal } from '@/components/rapid-review-modal';
@@ -1344,10 +1347,34 @@ export default function Today() {
     getReflectionForDate(getTodayDateKey()),
   );
 
+  const allGoalsQuery = useGetGoals();
   const dashboard = dashboardQuery.data;
   const today = todayQuery.data;
+  const allGoals = allGoalsQuery.data ?? [];
   const goals = today?.goals ?? [];
   const dailyScore = dashboard?.dailyScore ?? today?.dailyScore ?? 0;
+
+  const isWeekend = useMemo(() => {
+    const dateStr = today?.date ?? dashboard?.date;
+    const d = dateStr ? new Date(`${dateStr.slice(0, 10)}T12:00:00Z`) : new Date();
+    const day = d.getUTCDay();
+    return day === 0 || day === 6;
+  }, [today?.date, dashboard?.date]);
+
+  const restingWeekdayGoals = useMemo(() => {
+    if (!isWeekend) return [];
+    return allGoals.filter(
+      (g) => g.active && g.frequency === 'weekdays' && !goals.some((dg) => dg.goalId === g.id),
+    );
+  }, [isWeekend, allGoals, goals]);
+
+  const handleRefreshAll = async () => {
+    await Promise.all([
+      todayQuery.refetch(),
+      dashboardQuery.refetch(),
+      allGoalsQuery.refetch(),
+    ]);
+  };
 
   const handleDraftReflection = (suggestedText: string) => {
     const dateKey = getTodayDateKey();
@@ -2048,6 +2075,16 @@ export default function Today() {
                   </div>
                 </div>
 
+                {/* Weekend Deload & Resting Weekday Goals Card */}
+                {isWeekend && (
+                  <WeekendOptInCard
+                    restingGoals={restingWeekdayGoals}
+                    activeTodayGoals={goals}
+                    onRefresh={handleRefreshAll}
+                    categoryStyles={categoryStyles}
+                  />
+                )}
+
                 {/* Grace Day Rest Banner when Shield is Active */}
                 {isShieldedToday && (
                   <div className="mb-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-primary/40 bg-primary/[0.04] p-4 text-xs animate-in fade-in">
@@ -2140,14 +2177,26 @@ export default function Today() {
                 </div>
 
                 {displayedGoals.length === 0 ? (
-                  <div className="rounded-2xl border border-dashed border-border p-8 text-center">
-                    <Target className="mx-auto mb-2 size-6 text-muted-foreground/60" />
-                    <h3 className="font-bold text-sm text-sidebar">No habits in this routine stack</h3>
-                    <p className="mt-1 text-xs text-muted-foreground max-w-sm mx-auto">
-                      Click the routine pill next to any habit to assign it to{' '}
-                      {activeRoutineFilter !== 'all' ? ROUTINE_CONFIGS[activeRoutineFilter].label : 'this routine'}.
-                    </p>
-                  </div>
+                  isWeekend && activeRoutineFilter === 'all' && goals.length === 0 ? (
+                    <div className="rounded-[28px] border border-dashed border-border/90 bg-card/40 p-8 text-center animate-in fade-in">
+                      <div className="mx-auto mb-3 grid size-12 place-items-center rounded-2xl bg-amber-500/15 text-amber-700 dark:text-amber-300">
+                        <Coffee className="size-6" />
+                      </div>
+                      <h3 className="font-extrabold text-base text-sidebar">All Weekday Habits Resting Today ☕</h3>
+                      <p className="mt-1 text-xs text-muted-foreground max-w-md mx-auto leading-relaxed">
+                        Your regular goals are scheduled for Monday through Friday. Your consistency streak is safe and resting today. Enjoy your weekend recovery, or activate any habit above for bonus momentum.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="rounded-2xl border border-dashed border-border p-8 text-center">
+                      <Target className="mx-auto mb-2 size-6 text-muted-foreground/60" />
+                      <h3 className="font-bold text-sm text-sidebar">No habits in this routine stack</h3>
+                      <p className="mt-1 text-xs text-muted-foreground max-w-sm mx-auto">
+                        Click the routine pill next to any habit to assign it to{' '}
+                        {activeRoutineFilter !== 'all' ? ROUTINE_CONFIGS[activeRoutineFilter].label : 'this routine'}.
+                      </p>
+                    </div>
+                  )
                 ) : viewMode === 'roadmap' ? (
                   <DailyRoadmapView
                     goals={displayedGoals}

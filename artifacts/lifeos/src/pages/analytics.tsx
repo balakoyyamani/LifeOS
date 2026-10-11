@@ -46,6 +46,7 @@ interface DayActivity {
   focusMinutes: number;
   isShielded?: boolean;
   isToday: boolean;
+  isDeload?: boolean;
 }
 
 const categoryMeta: Record<
@@ -160,20 +161,27 @@ export default function Analytics() {
       let dayFocus = 0;
       let isShielded = false;
 
+      const isWeekendDay = dayOfWeek === 0 || dayOfWeek === 6;
+      let isDeload = false;
+
       if (isToday) {
         dayScore = todayScore;
         dayCompleted = dashboard?.completedCount ?? today?.goals.filter((g) => g.status === 'completed').length ?? 0;
-        dayTotal = dashboard?.totalCount ?? today?.goals.length ?? Math.max(1, goals.length || 1);
+        const rawTodayTotal = dashboard?.totalCount ?? today?.goals.length ?? 0;
+        dayTotal = rawTodayTotal > 0 ? rawTodayTotal : (isWeekendDay ? 0 : Math.max(1, goals.length || 1));
         dayFocus = focusMinutes;
         isShielded = Boolean(shieldVault.deployedShields[dateKey]);
+        isDeload = isWeekendDay && dayTotal === 0 && dayScore === 0;
       } else {
-        // Genuine recorded history. Days without activity (like yesterday if nothing was done) accurately yield 0.
+        // Genuine recorded history.
         const record = getDailyHistoryRecord(dateKey);
+        const isRestWeekend = isWeekendDay && record.totalCount === 0;
         dayScore = record.score;
         dayCompleted = record.completedCount;
-        dayTotal = record.totalCount > 0 ? record.totalCount : Math.max(1, goals.length || 1);
+        dayTotal = record.totalCount > 0 ? record.totalCount : (isRestWeekend ? 0 : Math.max(1, goals.length || 1));
         dayFocus = record.focusMinutes;
         isShielded = record.isShielded ?? false;
+        isDeload = isRestWeekend && dayScore === 0;
       }
 
       days.push({
@@ -186,6 +194,7 @@ export default function Analytics() {
         focusMinutes: dayFocus,
         isShielded,
         isToday,
+        isDeload,
       });
     }
     return days;
@@ -354,7 +363,9 @@ export default function Analytics() {
                   day.score === 0
                     ? day.isShielded
                       ? 'border border-accent/40 bg-accent/20 text-accent font-semibold'
-                      : 'border border-border/60 bg-muted/30 text-muted-foreground/40'
+                      : day.isDeload
+                        ? 'border border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300 font-medium'
+                        : 'border border-border/60 bg-muted/30 text-muted-foreground/40'
                     : day.score < 50
                       ? 'border border-primary/20 bg-primary/20 text-sidebar font-semibold'
                       : day.score < 75
@@ -375,7 +386,9 @@ export default function Analytics() {
                       day.isToday && 'ring-2 ring-accent ring-offset-2 ring-offset-background',
                     )}
                   >
-                    <span className="font-mono text-xs">{day.score}</span>
+                    <span className="font-mono text-xs">
+                      {day.isDeload && day.score === 0 ? '☕' : day.score}
+                    </span>
                     <span className="text-[10px] opacity-75">{day.dayLabel}</span>
                   </button>
                 );
@@ -396,6 +409,11 @@ export default function Analytics() {
                 {hoveredDay.isShielded && (
                   <span className="rounded-full bg-accent/20 px-2 py-0.5 text-[10px] font-bold text-accent-foreground">
                     Shielded 🛡️
+                  </span>
+                )}
+                {hoveredDay.isDeload && (
+                  <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-bold text-amber-700 dark:text-amber-300">
+                    Weekend Deload ☕
                   </span>
                 )}
                 <span className="text-muted-foreground">· Daily Score:</span>

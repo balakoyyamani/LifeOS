@@ -203,3 +203,56 @@ export function calculateMetrics(goals: ReturnType<typeof mapDailyGoal>[]) {
 export async function listGoals(userId: number) {
   return db.select().from(goalsTable).where(eq(goalsTable.userId, userId)).orderBy(asc(goalsTable.priority), asc(goalsTable.createdAt));
 }
+
+export async function optInGoalForDate(userId: number, goalId: number, dateKey: string): Promise<number | null> {
+  const [goal] = await db
+    .select({ id: goalsTable.id })
+    .from(goalsTable)
+    .where(and(eq(goalsTable.id, goalId), eq(goalsTable.userId, userId), eq(goalsTable.active, true)))
+    .limit(1);
+
+  if (!goal) return null;
+
+  const existing = await db
+    .select({ id: dailyGoalsTable.id })
+    .from(dailyGoalsTable)
+    .where(
+      and(
+        eq(dailyGoalsTable.userId, userId),
+        eq(dailyGoalsTable.goalId, goalId),
+        eq(dailyGoalsTable.goalDate, dateKey),
+      ),
+    )
+    .limit(1);
+
+  if (existing[0]) {
+    return existing[0].id;
+  }
+
+  const [dailyGoal] = await db
+    .insert(dailyGoalsTable)
+    .values({ userId, goalId, goalDate: dateKey })
+    .returning({ id: dailyGoalsTable.id });
+
+  await db.insert(goalProgressTable).values({ dailyGoalId: dailyGoal.id });
+  return dailyGoal.id;
+}
+
+export async function optOutGoalForDate(userId: number, goalId: number, dateKey: string): Promise<boolean> {
+  const [dailyGoal] = await db
+    .select({ id: dailyGoalsTable.id })
+    .from(dailyGoalsTable)
+    .where(
+      and(
+        eq(dailyGoalsTable.userId, userId),
+        eq(dailyGoalsTable.goalId, goalId),
+        eq(dailyGoalsTable.goalDate, dateKey),
+      ),
+    )
+    .limit(1);
+
+  if (!dailyGoal) return false;
+
+  await db.delete(dailyGoalsTable).where(eq(dailyGoalsTable.id, dailyGoal.id));
+  return true;
+}
