@@ -18,6 +18,7 @@ import {
   mapDailyGoal,
   optInGoalForDate,
   optOutGoalForDate,
+  parseGoalMinutes,
   recordFocusSession,
   todayKey,
 } from "../lib/lifeos";
@@ -126,15 +127,47 @@ router.get("/history", async (req, res): Promise<void> => {
   }
   const rawActivities = await db
     .select({
+      goalId: activitiesTable.goalId,
       activityDate: activitiesTable.activityDate,
       durationMinutes: activitiesTable.durationMinutes,
     })
     .from(activitiesTable)
     .where(and(...activityConditions));
 
-  const focusByDate: Record<string, number> = {};
+  const activitiesByDate: Record<string, { goalMinutes: Record<number, number>; unlinked: number }> = {};
   for (const a of rawActivities) {
-    focusByDate[a.activityDate] = (focusByDate[a.activityDate] || 0) + (a.durationMinutes || 0);
+    if (!activitiesByDate[a.activityDate]) {
+      activitiesByDate[a.activityDate] = { goalMinutes: {}, unlinked: 0 };
+    }
+    const mins = a.durationMinutes ?? 0;
+    if (a.goalId) {
+      activitiesByDate[a.activityDate].goalMinutes[a.goalId] =
+        (activitiesByDate[a.activityDate].goalMinutes[a.goalId] ?? 0) + mins;
+    } else {
+      activitiesByDate[a.activityDate].unlinked += mins;
+    }
+  }
+
+  const goalsMinutesByDate: Record<string, Record<number, number>> = {};
+  for (const g of rawGoals) {
+    const mins = parseGoalMinutes(g.currentValue, g.unit);
+    if (mins > 0) {
+      if (!goalsMinutesByDate[g.goalDate]) goalsMinutesByDate[g.goalDate] = {};
+      goalsMinutesByDate[g.goalDate][g.goalId] = mins;
+    }
+  }
+
+  const allDates = new Set([...Object.keys(byDate), ...Object.keys(activitiesByDate)]);
+  const focusByDate: Record<string, number> = {};
+  for (const d of allDates) {
+    const gMap = goalsMinutesByDate[d] || {};
+    const aData = activitiesByDate[d] || { goalMinutes: {}, unlinked: 0 };
+    const goalIds = new Set([...Object.keys(gMap).map(Number), ...Object.keys(aData.goalMinutes).map(Number)]);
+    let dayTotal = aData.unlinked;
+    for (const gid of goalIds) {
+      dayTotal += Math.max(gMap[gid] ?? 0, aData.goalMinutes[gid] ?? 0);
+    }
+    focusByDate[d] = dayTotal;
   }
 
   const history: Record<

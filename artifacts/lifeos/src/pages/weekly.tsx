@@ -28,12 +28,13 @@ import {
   Trophy,
   Zap,
 } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
 import { useGetDashboard, useGetGoals, useGetToday } from '@workspace/api-client-react';
 import type { Category } from '@workspace/api-client-react';
 import { AppShell, ProfileChip } from '@/components/app-shell';
 import { sound } from '@/lib/sound';
 import { getReflectionForDate } from '@/lib/reflections';
-import { getDailyHistoryRecord } from '@/lib/history';
+import { getDailyHistoryRecord, fetchHistoryApi } from '@/lib/history';
 import {
   type WeekRange,
   type WeeklyObjective,
@@ -211,6 +212,14 @@ export default function WeeklyPage() {
 
   // Synthesize 7-day retrospective data for this week
   const streak = dashboard?.streak ?? 0;
+  const startDate = week.days[0]?.dateStr;
+  const endDate = week.days[week.days.length - 1]?.dateStr;
+  const historyQuery = useQuery({
+    queryKey: ['server-history', startDate, endDate],
+    queryFn: () => fetchHistoryApi(startDate, endDate),
+    enabled: Boolean(startDate && endDate),
+  });
+
   const todayScore = dashboard?.dailyScore ?? today?.dailyScore ?? 0;
 
   const weeklyDaysData = useMemo(() => {
@@ -219,17 +228,19 @@ export default function WeeklyPage() {
     return week.days.map((day) => {
       const isPastOrToday = day.date <= now;
       const historyRecord = getDailyHistoryRecord(day.dateStr);
+      const serverRecord = historyQuery.data?.[day.dateStr];
 
-      let score = 0;
-      let focus = 0;
+      let score = serverRecord?.dailyScore ?? historyRecord.score;
+      let focus = serverRecord?.focusMinutes ?? historyRecord.focusMinutes ?? 0;
 
       if (day.isToday) {
-        score = todayScore;
-        focus = dashboard?.focusMinutes ?? historyRecord.focusMinutes ?? 0;
+        score = todayScore > 0 ? todayScore : score;
+        focus = (dashboard?.focusMinutes && dashboard.focusMinutes > 0)
+          ? dashboard.focusMinutes
+          : Math.max(focus, historyRecord.focusMinutes || 0);
       } else if (isPastOrToday) {
-        // Genuine recorded history from actual activity. If nothing was done (e.g. yesterday), this is accurately 0.
-        score = historyRecord.score;
-        focus = historyRecord.focusMinutes;
+        score = serverRecord?.dailyScore !== undefined ? serverRecord.dailyScore : historyRecord.score;
+        focus = serverRecord?.focusMinutes !== undefined ? serverRecord.focusMinutes : historyRecord.focusMinutes;
       } else {
         score = 0;
         focus = 0;
@@ -245,7 +256,7 @@ export default function WeeklyPage() {
         isPastOrToday,
       };
     });
-  }, [week, todayScore, dashboard?.focusMinutes]);
+  }, [week, todayScore, dashboard?.focusMinutes, historyQuery.data]);
 
   // Aggregate weekly stats
   const elapsedDays = weeklyDaysData.filter((d) => d.isPastOrToday);

@@ -1416,6 +1416,22 @@ export default function Today() {
     ? (historicalGoalsQuery.data?.dailyCompletion ?? 33)
     : (dashboard?.dailyCompletion ?? today?.dailyCompletion ?? 0);
 
+  const computedFocusMinutes = useMemo(() => {
+    let mins = 0;
+    for (const g of goals) {
+      const u = (g.unit || '').toLowerCase();
+      const val = Number(g.currentValue || 0);
+      if (val > 0) {
+        if (u.includes('hr') || u.includes('hour')) {
+          mins += Math.round(val * 60);
+        } else if (u.includes('min') || u.includes('sec') || u.includes('time')) {
+          mins += Math.round(val);
+        }
+      }
+    }
+    return Math.max(dashboard?.focusMinutes ?? 0, mins);
+  }, [dashboard?.focusMinutes, goals]);
+
   const isWeekend = useMemo(() => {
     const dateStr = (isHistoricalDate ? selectedDate : today?.date) ?? dashboard?.date;
     const d = dateStr ? new Date(`${dateStr.slice(0, 10)}T12:00:00Z`) : new Date();
@@ -1522,7 +1538,7 @@ export default function Today() {
         dashboard?.completedCount ??
         goals.filter((g) => g.status === 'completed' || g.percent >= 100).length;
       const totalCount = dashboard?.totalCount ?? goals.length;
-      const focusMins = dashboard?.focusMinutes ?? 0;
+      const focusMins = computedFocusMinutes;
       syncTodayRecord(
         {
           score: dailyScore,
@@ -1538,7 +1554,7 @@ export default function Today() {
     todayDateKey,
     dashboard?.completedCount,
     dashboard?.totalCount,
-    dashboard?.focusMinutes,
+    computedFocusMinutes,
     goals,
     isViewingYesterday,
   ]);
@@ -1723,14 +1739,14 @@ export default function Today() {
       streak: dashboard?.streak ?? 0,
       dailyScore,
       dailyCompletion,
-      focusMinutes: dashboard?.focusMinutes ?? 0,
+      focusMinutes: computedFocusMinutes,
       totalGoalsCount: goals.length,
       completedGoalsCount: completedGoals.length,
       distinctCategoriesCompleted: distinctCats,
       eveningReflectionsCount: reflectionsCount,
       weeklyOkrsCompleted: okrsDone,
     };
-  }, [dashboard?.streak, dashboard?.focusMinutes, dailyScore, dailyCompletion, goals]);
+  }, [dashboard?.streak, computedFocusMinutes, dailyScore, dailyCompletion, goals]);
 
   const evaluatedBadges = useMemo(() => evaluateBadges(userStats), [userStats]);
   const unlockedBadgesCount = evaluatedBadges.filter((b) => b.unlocked).length;
@@ -1946,7 +1962,7 @@ export default function Today() {
                     <div className="flex items-center gap-1.5 text-accent">
                       <Clock3 className="size-4" />
                       <span className="text-xl font-extrabold">
-                        {dashboard?.focusMinutes ?? 0}
+                        {computedFocusMinutes}
                       </span>
                     </div>
                     <div className="mt-1 text-[10px] text-sidebar-foreground/50">focus min</div>
@@ -1969,7 +1985,7 @@ export default function Today() {
               <DailyBriefingCard
                 goals={goals}
                 dailyScore={dailyScore}
-                focusMinutes={dashboard?.focusMinutes ?? 0}
+                focusMinutes={computedFocusMinutes}
                 onSelectGoal={(goal) => setInspectingGoal(goal)}
                 onOpenZen={(goal) => {
                   setZenInitialGoal(goal);
@@ -2561,7 +2577,7 @@ export default function Today() {
             score={dailyScore}
             completion={dailyCompletion}
             streak={dashboard?.streak ?? 0}
-            focusMinutes={dashboard?.focusMinutes ?? 0}
+            focusMinutes={computedFocusMinutes}
             contributions={contributions}
             onClose={() => setShowScoreModal(false)}
           />
@@ -2575,7 +2591,7 @@ export default function Today() {
             dailyScore={dailyScore}
             dailyCompletion={dailyCompletion}
             streak={dashboard?.streak ?? 0}
-            focusMinutes={dashboard?.focusMinutes ?? 0}
+            focusMinutes={computedFocusMinutes}
           />
         )}
         {/* Ambient Full-screen Zen Focus Room */}

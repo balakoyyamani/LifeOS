@@ -39,7 +39,7 @@ import { type UserStatsSnapshot, evaluateBadges } from '@/lib/badges';
 import { ENERGY_LEVELS, getAllReflections, getLocalDateKey, getReflectionForDate, getTodayDateKey } from '@/lib/reflections';
 import { getWeekDetails, getWeeklyObjectives } from '@/lib/weekly';
 import { getShieldVaultState, getStreakTier } from '@/lib/shields';
-import { getDailyHistoryRecord } from '@/lib/history';
+import { getDailyHistoryRecord, fetchHistoryApi } from '@/lib/history';
 import { cn } from '@/lib/utils';
 
 interface DayActivity {
@@ -460,8 +460,38 @@ export default function Analytics() {
   const reflections = useMemo(() => getAllReflections(), []);
 
   const streak = dashboard?.streak ?? 0;
-  const focusMinutes = dashboard?.focusMinutes ?? 0;
   const todayScore = dashboard?.dailyScore ?? today?.dailyScore ?? 0;
+
+  const historyQuery = useQuery({
+    queryKey: ['server-history-analytics'],
+    queryFn: () => {
+      const now = new Date();
+      const past = new Date(now);
+      past.setDate(past.getDate() - 45);
+      const startStr = getLocalDateKey(past);
+      const endStr = getLocalDateKey(now);
+      return fetchHistoryApi(startStr, endStr);
+    },
+  });
+
+  const computedTodayFocus = useMemo(() => {
+    let mins = 0;
+    const todayGoals = today?.goals ?? [];
+    for (const g of todayGoals) {
+      const u = (g.unit || '').toLowerCase();
+      const val = Number(g.currentValue || 0);
+      if (val > 0) {
+        if (u.includes('hr') || u.includes('hour')) {
+          mins += Math.round(val * 60);
+        } else if (u.includes('min') || u.includes('sec') || u.includes('time')) {
+          mins += Math.round(val);
+        }
+      }
+    }
+    return Math.max(dashboard?.focusMinutes ?? 0, mins);
+  }, [dashboard?.focusMinutes, today?.goals]);
+
+  const focusMinutes = computedTodayFocus;
 
   const userStats: UserStatsSnapshot = useMemo(() => {
     const todayGoals = today?.goals ?? [];
@@ -510,23 +540,31 @@ export default function Analytics() {
 
       const isWeekendDay = dayOfWeek === 0 || dayOfWeek === 6;
       let isDeload = false;
+      const serverRecord = historyQuery.data?.[dateKey];
 
       if (isToday) {
         dayScore = todayScore;
         dayCompleted = dashboard?.completedCount ?? today?.goals.filter((g) => g.status === 'completed').length ?? 0;
         const rawTodayTotal = dashboard?.totalCount ?? today?.goals.length ?? 0;
         dayTotal = rawTodayTotal > 0 ? rawTodayTotal : (isWeekendDay ? 0 : Math.max(1, goals.length || 1));
-        dayFocus = focusMinutes;
+        dayFocus = (dashboard?.focusMinutes && dashboard.focusMinutes > 0)
+          ? dashboard.focusMinutes
+          : Math.max(computedTodayFocus, serverRecord?.focusMinutes || 0);
         isShielded = Boolean(shieldVault.deployedShields[dateKey]);
         isDeload = isWeekendDay && dayTotal === 0 && dayScore === 0;
       } else {
-        // Genuine recorded history.
+        // Genuine recorded history from server and local storage
         const record = getDailyHistoryRecord(dateKey);
-        const isRestWeekend = isWeekendDay && record.totalCount === 0;
-        dayScore = record.score;
-        dayCompleted = record.completedCount;
-        dayTotal = record.totalCount > 0 ? record.totalCount : (isRestWeekend ? 0 : Math.max(1, goals.length || 1));
-        dayFocus = record.focusMinutes;
+        const effectiveScore = serverRecord?.dailyScore !== undefined ? serverRecord.dailyScore : record.score;
+        const effectiveCompleted = serverRecord?.completedCount !== undefined ? serverRecord.completedCount : record.completedCount;
+        const effectiveTotal = serverRecord?.totalCount !== undefined ? serverRecord.totalCount : record.totalCount;
+        const effectiveFocus = Math.max(record.focusMinutes || 0, serverRecord?.focusMinutes || 0);
+
+        const isRestWeekend = isWeekendDay && effectiveTotal === 0;
+        dayScore = effectiveScore;
+        dayCompleted = effectiveCompleted;
+        dayTotal = effectiveTotal > 0 ? effectiveTotal : (isRestWeekend ? 0 : Math.max(1, goals.length || 1));
+        dayFocus = effectiveFocus;
         isShielded = record.isShielded ?? false;
         isDeload = isRestWeekend && dayScore === 0;
       }
@@ -545,7 +583,7 @@ export default function Analytics() {
       });
     }
     return days;
-  }, [todayScore, focusMinutes, dashboard, today, goals, shieldVault.deployedShields]);
+  }, [todayScore, computedTodayFocus, dashboard, today, goals, shieldVault.deployedShields, historyQuery.data]);
 
   // Aggregate monthly stats based on authentic recorded days
   const activeRecordedDays = activityData.filter((d) => d.score > 0 || d.focusMinutes > 0 || d.isShielded);

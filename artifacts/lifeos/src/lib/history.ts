@@ -143,3 +143,67 @@ export function getAllRecordedDates(): string[] {
     return [];
   }
 }
+
+/**
+ * Ingest server history from /api/history into client storage and cache.
+ */
+export function syncServerHistory(serverHistory: Record<string, any>): void {
+  try {
+    for (const [dateStr, sRec] of Object.entries(serverHistory)) {
+      if (!dateStr || !sRec) continue;
+      const local = getDailyHistoryRecord(dateStr);
+      const score = sRec.dailyScore !== undefined ? sRec.dailyScore : local.score;
+      const completedCount = sRec.completedCount !== undefined ? sRec.completedCount : local.completedCount;
+      const totalCount = sRec.totalCount !== undefined ? sRec.totalCount : local.totalCount;
+      const focusMinutes = Math.max(local.focusMinutes || 0, sRec.focusMinutes || 0);
+
+      saveDailyHistoryRecord({
+        date: dateStr,
+        score,
+        completedCount,
+        totalCount,
+        focusMinutes,
+        isShielded: local.isShielded,
+        hasReflection: local.hasReflection,
+      });
+    }
+  } catch (err) {
+    console.error('Failed to sync server history:', err);
+  }
+}
+
+/**
+ * Fetch history from the server and persist to local storage.
+ */
+export async function fetchHistoryApi(
+  startDate?: string,
+  endDate?: string,
+): Promise<Record<string, {
+  date: string;
+  dailyScore: number;
+  dailyCompletion: number;
+  completedCount: number;
+  totalCount: number;
+  focusMinutes: number;
+}>> {
+  const params = new URLSearchParams();
+  if (startDate) params.set('startDate', startDate);
+  if (endDate) params.set('endDate', endDate);
+  const queryStr = params.toString() ? `?${params.toString()}` : '';
+  const res = await fetch(`/api/history${queryStr}`, { credentials: 'include' });
+  if (!res.ok) {
+    throw new Error('Failed to fetch history');
+  }
+  const data = await res.json();
+  const history = (data.history || {}) as Record<string, {
+    date: string;
+    dailyScore: number;
+    dailyCompletion: number;
+    completedCount: number;
+    totalCount: number;
+    focusMinutes: number;
+  }>;
+  syncServerHistory(history);
+  return history;
+}
+
