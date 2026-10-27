@@ -155,7 +155,7 @@ export function syncServerHistory(serverHistory: Record<string, any>): void {
       const score = sRec.dailyScore !== undefined ? sRec.dailyScore : local.score;
       const completedCount = sRec.completedCount !== undefined ? sRec.completedCount : local.completedCount;
       const totalCount = sRec.totalCount !== undefined ? sRec.totalCount : local.totalCount;
-      const focusMinutes = Math.max(local.focusMinutes || 0, sRec.focusMinutes || 0);
+      const focusMinutes = sRec.focusMinutes !== undefined ? sRec.focusMinutes : local.focusMinutes;
 
       saveDailyHistoryRecord({
         date: dateStr,

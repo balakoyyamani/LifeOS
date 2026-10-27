@@ -1416,21 +1416,7 @@ export default function Today() {
     ? (historicalGoalsQuery.data?.dailyCompletion ?? 33)
     : (dashboard?.dailyCompletion ?? today?.dailyCompletion ?? 0);
 
-  const computedFocusMinutes = useMemo(() => {
-    let mins = 0;
-    for (const g of goals) {
-      const u = (g.unit || '').toLowerCase();
-      const val = Number(g.currentValue || 0);
-      if (val > 0) {
-        if (u.includes('hr') || u.includes('hour')) {
-          mins += Math.round(val * 60);
-        } else if (u.includes('min') || u.includes('sec') || u.includes('time')) {
-          mins += Math.round(val);
-        }
-      }
-    }
-    return Math.max(dashboard?.focusMinutes ?? 0, mins);
-  }, [dashboard?.focusMinutes, goals]);
+  const computedFocusMinutes = dashboard?.focusMinutes ?? 0;
 
   const isWeekend = useMemo(() => {
     const dateStr = (isHistoricalDate ? selectedDate : today?.date) ?? dashboard?.date;

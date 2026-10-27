@@ -474,24 +474,7 @@ export default function Analytics() {
     },
   });
 
-  const computedTodayFocus = useMemo(() => {
-    let mins = 0;
-    const todayGoals = today?.goals ?? [];
-    for (const g of todayGoals) {
-      const u = (g.unit || '').toLowerCase();
-      const val = Number(g.currentValue || 0);
-      if (val > 0) {
-        if (u.includes('hr') || u.includes('hour')) {
-          mins += Math.round(val * 60);
-        } else if (u.includes('min') || u.includes('sec') || u.includes('time')) {
-          mins += Math.round(val);
-        }
-      }
-    }
-    return Math.max(dashboard?.focusMinutes ?? 0, mins);
-  }, [dashboard?.focusMinutes, today?.goals]);
-
-  const focusMinutes = computedTodayFocus;
+  const focusMinutes = dashboard?.focusMinutes ?? 0;
 
   const userStats: UserStatsSnapshot = useMemo(() => {
     const todayGoals = today?.goals ?? [];
@@ -547,9 +530,7 @@ export default function Analytics() {
         dayCompleted = dashboard?.completedCount ?? today?.goals.filter((g) => g.status === 'completed').length ?? 0;
         const rawTodayTotal = dashboard?.totalCount ?? today?.goals.length ?? 0;
         dayTotal = rawTodayTotal > 0 ? rawTodayTotal : (isWeekendDay ? 0 : Math.max(1, goals.length || 1));
-        dayFocus = (dashboard?.focusMinutes && dashboard.focusMinutes > 0)
-          ? dashboard.focusMinutes
-          : Math.max(computedTodayFocus, serverRecord?.focusMinutes || 0);
+        dayFocus = focusMinutes;
         isShielded = Boolean(shieldVault.deployedShields[dateKey]);
         isDeload = isWeekendDay && dayTotal === 0 && dayScore === 0;
       } else {
@@ -558,7 +539,7 @@ export default function Analytics() {
         const effectiveScore = serverRecord?.dailyScore !== undefined ? serverRecord.dailyScore : record.score;
         const effectiveCompleted = serverRecord?.completedCount !== undefined ? serverRecord.completedCount : record.completedCount;
         const effectiveTotal = serverRecord?.totalCount !== undefined ? serverRecord.totalCount : record.totalCount;
-        const effectiveFocus = Math.max(record.focusMinutes || 0, serverRecord?.focusMinutes || 0);
+        const effectiveFocus = serverRecord?.focusMinutes !== undefined ? serverRecord.focusMinutes : record.focusMinutes;
 
         const isRestWeekend = isWeekendDay && effectiveTotal === 0;
         dayScore = effectiveScore;
@@ -583,7 +564,7 @@ export default function Analytics() {
       });
     }
     return days;
-  }, [todayScore, computedTodayFocus, dashboard, today, goals, shieldVault.deployedShields, historyQuery.data]);
+  }, [todayScore, focusMinutes, dashboard, today, goals, shieldVault.deployedShields, historyQuery.data]);
 
   // Aggregate monthly stats based on authentic recorded days
   const activeRecordedDays = activityData.filter((d) => d.score > 0 || d.focusMinutes > 0 || d.isShielded);

@@ -259,25 +259,12 @@ export async function optOutGoalForDate(userId: number, goalId: number, dateKey:
   return true;
 }
 
-export function parseGoalMinutes(val: string | number | null | undefined, unit: string | null | undefined): number {
-  if (!val || !unit) return 0;
-  const num = Number(val);
-  if (isNaN(num) || num <= 0) return 0;
-  const u = unit.toLowerCase();
-  if (u.includes("hr") || u.includes("hour")) {
-    return Math.round(num * 60);
-  }
-  if (u.includes("min") || u.includes("sec") || u.includes("time")) {
-    return Math.round(num);
-  }
-  return 0;
-}
-
 export async function getDailyFocusMinutes(userId: number, dateStr: string): Promise<number> {
   const activities = await db
     .select({
-      goalId: activitiesTable.goalId,
       durationMinutes: activitiesTable.durationMinutes,
+      type: activitiesTable.type,
+      timerId: activitiesTable.timerId,
     })
     .from(activitiesTable)
     .where(
@@ -287,53 +274,18 @@ export async function getDailyFocusMinutes(userId: number, dateStr: string): Pro
       ),
     );
 
-  const goalsWithProgress = await db
-    .select({
-      goalId: goalsTable.id,
-      unit: goalsTable.unit,
-      currentValue: goalProgressTable.currentValue,
-    })
-    .from(dailyGoalsTable)
-    .innerJoin(goalsTable, eq(goalsTable.id, dailyGoalsTable.goalId))
-    .innerJoin(goalProgressTable, eq(goalProgressTable.dailyGoalId, dailyGoalsTable.id))
-    .where(
-      and(
-        eq(dailyGoalsTable.userId, userId),
-        eq(dailyGoalsTable.goalDate, dateStr),
-      ),
-    );
-
-  const goalMinutesMap: Record<number, number> = {};
-  for (const g of goalsWithProgress) {
-    const mins = parseGoalMinutes(g.currentValue, g.unit);
-    if (mins > 0) {
-      goalMinutesMap[g.goalId] = mins;
-    }
-  }
-
-  const activityMinutesMap: Record<number, number> = {};
-  let unlinkedActivityMins = 0;
+  let focusMins = 0;
   for (const a of activities) {
     const mins = a.durationMinutes ?? 0;
-    if (a.goalId) {
-      activityMinutesMap[a.goalId] = (activityMinutesMap[a.goalId] ?? 0) + mins;
-    } else {
-      unlinkedActivityMins += mins;
+    if (mins <= 0) continue;
+    const t = (a.type || "").toLowerCase();
+    if (t === "workout" || t === "goal_note") continue;
+    if (a.timerId !== null || ["study", "focus", "deep_work", "coding"].includes(t)) {
+      focusMins += mins;
     }
   }
 
-  const allGoalIds = new Set([
-    ...Object.keys(goalMinutesMap).map(Number),
-    ...Object.keys(activityMinutesMap).map(Number),
-  ]);
-  let combinedGoalMinutes = 0;
-  for (const gid of allGoalIds) {
-    const gMins = goalMinutesMap[gid] ?? 0;
-    const aMins = activityMinutesMap[gid] ?? 0;
-    combinedGoalMinutes += Math.max(gMins, aMins);
-  }
-
-  return combinedGoalMinutes + unlinkedActivityMins;
+  return focusMins;
 }
 
 export async function recordFocusSession(
