@@ -129,4 +129,13 @@ describe("LifeOS Core Business Logic", () => {
       assert.equal(metrics.dailyCompletion, 75); // (100 + 50) / 2
     });
   });
+
+  describe("Focus Time Engine", () => {
+    it("should export getDailyFocusMinutes and recordFocusSession functions", async () => {
+      const lifeos = await import("./lifeos");
+      assert.equal(typeof lifeos.getDailyFocusMinutes, "function");
+      assert.equal(typeof lifeos.recordFocusSession, "function");
+    });
+  });
 });
+

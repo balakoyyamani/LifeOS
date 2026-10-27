@@ -118,6 +118,9 @@ export function ZenFocusRoom({
     if (activeGoal) {
       onLogProgress(activeGoal, logged);
       sound.playComplete();
+    } else {
+      onLogProgress({ id: 0, name: 'Deep Focus' } as DailyGoal, logged);
+      sound.playComplete();
     }
     onClose();
   };

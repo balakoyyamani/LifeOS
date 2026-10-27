@@ -1,7 +1,6 @@
 import { Router, type IRouter } from "express";
 import { and, asc, eq, gte, lte } from "drizzle-orm";
-import { db, dailyGoalsTable, goalProgressTable } from "@workspace/db";
-import { goalsTable } from "@workspace/db";
+import { db, activitiesTable, dailyGoalsTable, goalProgressTable, goalsTable } from "@workspace/db";
 import {
   GetDashboardResponse,
   GetTodayResponse,
@@ -13,11 +12,13 @@ import { requireAuth } from "../middlewares/auth";
 import {
   calculateMetrics,
   ensureDailyGoals,
+  getDailyFocusMinutes,
   getOrCreateUser,
   listTodayGoals,
   mapDailyGoal,
   optInGoalForDate,
   optOutGoalForDate,
+  recordFocusSession,
   todayKey,
 } from "../lib/lifeos";
 
@@ -51,7 +52,8 @@ router.get("/today", async (req, res): Promise<void> => {
 });
 
 router.get("/dashboard", async (req, res): Promise<void> => {
-  const { date, goals, metrics } = await buildToday(req.userId!);
+  const { user, date, goals, metrics } = await buildToday(req.userId!);
+  const focusMinutes = await getDailyFocusMinutes(user.id, date);
   const unfinished = goals.filter((goal) => goal.status !== "completed" && goal.status !== "skipped");
   const weekday = new Date(`${date}T12:00:00Z`).getUTCDay();
   const isWeekend = weekday === 0 || weekday === 6;
@@ -68,7 +70,7 @@ router.get("/dashboard", async (req, res): Promise<void> => {
       dailyCompletion: metrics.dailyCompletion,
       dailyScore: metrics.dailyScore,
       streak: metrics.completedCount > 0 ? 1 : 0,
-      focusMinutes: 0,
+      focusMinutes,
       completedCount: metrics.completedCount,
       totalCount: metrics.totalCount,
       categoryContributions: metrics.contributions,
@@ -115,6 +117,26 @@ router.get("/history", async (req, res): Promise<void> => {
     byDate[g.goalDate].push(mapDailyGoal(g));
   }
 
+  const activityConditions = [eq(activitiesTable.userId, user.id)];
+  if (startDate) {
+    activityConditions.push(gte(activitiesTable.activityDate, startDate));
+  }
+  if (endDate) {
+    activityConditions.push(lte(activitiesTable.activityDate, endDate));
+  }
+  const rawActivities = await db
+    .select({
+      activityDate: activitiesTable.activityDate,
+      durationMinutes: activitiesTable.durationMinutes,
+    })
+    .from(activitiesTable)
+    .where(and(...activityConditions));
+
+  const focusByDate: Record<string, number> = {};
+  for (const a of rawActivities) {
+    focusByDate[a.activityDate] = (focusByDate[a.activityDate] || 0) + (a.durationMinutes || 0);
+  }
+
   const history: Record<
     string,
     {
@@ -123,6 +145,7 @@ router.get("/history", async (req, res): Promise<void> => {
       dailyCompletion: number;
       completedCount: number;
       totalCount: number;
+      focusMinutes: number;
     }
   > = {};
 
@@ -134,10 +157,45 @@ router.get("/history", async (req, res): Promise<void> => {
       dailyCompletion: metrics.dailyCompletion,
       completedCount: metrics.completedCount,
       totalCount: metrics.totalCount,
+      focusMinutes: focusByDate[d] || 0,
     };
   }
 
+  for (const [d, mins] of Object.entries(focusByDate)) {
+    if (!history[d]) {
+      history[d] = {
+        date: d,
+        dailyScore: 0,
+        dailyCompletion: 0,
+        completedCount: 0,
+        totalCount: 0,
+        focusMinutes: mins,
+      };
+    }
+  }
+
   res.json({ history });
+});
+
+router.post("/today/focus-session", async (req, res): Promise<void> => {
+  const user = await getOrCreateUser(req.userId!);
+  const { durationMinutes, goalId, title, notes, taskId } = req.body ?? {};
+
+  if (!durationMinutes || typeof durationMinutes !== "number" || durationMinutes <= 0) {
+    res.status(400).json({ error: "durationMinutes must be a positive number" });
+    return;
+  }
+
+  const result = await recordFocusSession(user.id, {
+    durationMinutes,
+    goalId: typeof goalId === "number" ? goalId : undefined,
+    taskId: typeof taskId === "number" ? taskId : undefined,
+    title: typeof title === "string" ? title : undefined,
+    notes: typeof notes === "string" ? notes : undefined,
+    dateStr: todayKey(user.timezone),
+  });
+
+  res.json(result);
 });
 
 router.patch("/today/goals/:id/progress", async (req, res): Promise<void> => {

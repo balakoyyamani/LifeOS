@@ -192,7 +192,7 @@ function ProgressAdjustModal({
 }: {
   goal: DailyGoal;
   onClose: () => void;
-  onSave: (goal: DailyGoal, value: number, status?: GoalStatus) => void;
+  onSave: (goal: DailyGoal, value: number, status?: GoalStatus, focusMinutesLogged?: number) => void;
   onOpenZen?: (goal: DailyGoal) => void;
   pending: boolean;
 }) {
@@ -710,6 +710,7 @@ function ProgressAdjustModal({
                     goal,
                     nextVal,
                     nextVal >= goal.targetValue ? 'completed' : 'in_progress',
+                    logged,
                   );
                   onClose();
                 }}
@@ -1320,6 +1321,27 @@ export default function Today() {
   const progressMutation = useUpdateDailyGoalProgress();
   const { toast } = useToast();
   const { schedules } = useNotifications();
+
+  const recordFocusSession = async (minutes: number, goal?: DailyGoal) => {
+    try {
+      await fetch('/api/today/focus-session', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          durationMinutes: minutes,
+          goalId: goal?.id,
+          title: goal?.name ? `Focus: ${goal.name}` : 'Focus Session',
+        }),
+      });
+      queryClient.invalidateQueries({ queryKey: getGetDashboardQueryKey() });
+      queryClient.invalidateQueries({ queryKey: getGetTodayQueryKey() });
+    } catch (e) {
+      console.error('Failed to record focus session:', e);
+    }
+  };
 
   const [viewMode, setViewMode] = useState<'roadmap' | 'category'>(() => {
     try {
@@ -2513,8 +2535,15 @@ export default function Today() {
           <ProgressAdjustModal
             goal={inspectingGoal}
             onClose={() => setInspectingGoal(undefined)}
-            onSave={(goal, val, status) => {
+            onSave={(goal, val, status, focusMinutesLogged) => {
               updateGoal(goal, val, status);
+              if (focusMinutesLogged && focusMinutesLogged > 0) {
+                recordFocusSession(focusMinutesLogged, goal);
+                toast({
+                  title: '⏱️ Focus Minutes Added',
+                  description: `Added ${focusMinutesLogged} focus minutes to ${goal.name}.`,
+                });
+              }
               setInspectingGoal(undefined);
             }}
             onOpenZen={(goal) => {
@@ -2562,6 +2591,11 @@ export default function Today() {
                 nextVal,
                 nextVal >= goal.targetValue ? 'completed' : 'in_progress',
               );
+              recordFocusSession(minutes, goal);
+              toast({
+                title: '🧘 Focus Session Logged',
+                description: `Recorded ${minutes} minutes of deep focus to ${goal.name || 'your day'}.`,
+              });
             }}
           />
         )}

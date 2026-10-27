@@ -1,10 +1,12 @@
 import { and, asc, eq, gte, isNull, lte, or } from "drizzle-orm";
 import {
   db,
+  activitiesTable,
   dailyGoalsTable,
   goalProgressTable,
   goalsTable,
   profilesTable,
+  timersTable,
   usersTable,
 } from "@workspace/db";
 
@@ -256,3 +258,112 @@ export async function optOutGoalForDate(userId: number, goalId: number, dateKey:
   await db.delete(dailyGoalsTable).where(eq(dailyGoalsTable.id, dailyGoal.id));
   return true;
 }
+
+export async function getDailyFocusMinutes(userId: number, dateStr: string): Promise<number> {
+  const activities = await db
+    .select({ durationMinutes: activitiesTable.durationMinutes })
+    .from(activitiesTable)
+    .where(
+      and(
+        eq(activitiesTable.userId, userId),
+        eq(activitiesTable.activityDate, dateStr),
+      ),
+    );
+
+  const total = activities.reduce((sum, a) => sum + (a.durationMinutes ?? 0), 0);
+  return total;
+}
+
+export async function recordFocusSession(
+  userId: number,
+  data: {
+    durationMinutes: number;
+    title?: string;
+    goalId?: number;
+    taskId?: number;
+    notes?: string;
+    dateStr?: string;
+  },
+) {
+  const dateStr = data.dateStr ?? todayKey();
+  const durationMinutes = Math.max(1, Math.round(data.durationMinutes));
+  const title = data.title ?? "Focus Session";
+  const now = new Date();
+
+  // 1. Insert into activitiesTable
+  const [activity] = await db
+    .insert(activitiesTable)
+    .values({
+      userId,
+      type: "study",
+      title,
+      description: data.notes ?? `Focus session completed: ${durationMinutes} minutes`,
+      durationMinutes,
+      goalId: data.goalId ?? null,
+      taskId: data.taskId ?? null,
+      activityDate: dateStr,
+    })
+    .returning();
+
+  // 2. Insert into timersTable for history
+  const [timer] = await db
+    .insert(timersTable)
+    .values({
+      userId,
+      title,
+      goalId: data.goalId ?? null,
+      taskId: data.taskId ?? null,
+      startedAt: new Date(now.getTime() - durationMinutes * 60 * 1000),
+      accumulatedSeconds: durationMinutes * 60,
+      targetDurationSeconds: durationMinutes * 60,
+      status: "completed",
+      completedAt: now,
+      notes: data.notes ?? null,
+    })
+    .returning();
+
+  // 3. If linked to a goal, increment its progress today
+  if (data.goalId) {
+    try {
+      const [dailyGoal] = await db
+        .select({ id: dailyGoalsTable.id })
+        .from(dailyGoalsTable)
+        .where(
+          and(
+            eq(dailyGoalsTable.userId, userId),
+            eq(dailyGoalsTable.goalId, data.goalId),
+            eq(dailyGoalsTable.goalDate, dateStr),
+          ),
+        )
+        .limit(1);
+
+      if (dailyGoal) {
+        const [progress] = await db
+          .select()
+          .from(goalProgressTable)
+          .where(eq(goalProgressTable.dailyGoalId, dailyGoal.id))
+          .limit(1);
+
+        if (progress) {
+          const cur = Number(progress.currentValue) + durationMinutes;
+          await db
+            .update(goalProgressTable)
+            .set({ currentValue: String(cur), status: "in_progress", updatedAt: new Date() })
+            .where(eq(goalProgressTable.id, progress.id));
+        }
+      }
+    } catch {
+      // Don't fail if goal progress increment fails
+    }
+  }
+
+  const updatedFocus = await getDailyFocusMinutes(userId, dateStr);
+
+  return {
+    success: true,
+    activityId: activity.id,
+    timerId: timer.id,
+    durationMinutes,
+    todayFocusMinutes: updatedFocus,
+  };
+}
